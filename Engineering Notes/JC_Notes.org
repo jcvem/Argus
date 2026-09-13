@@ -1,0 +1,27 @@
+# Main
+
+## Tools
+Git Submodules (Recommended)
+This is the official Git mechanism for embedding a separate Git repository (Web) inside a parent repository (Argus). The outer repo tracks a pointer to a specific commit of the sub-repo.
+
+Steps:
+Create the new GitHub repository for the Web app (e.g., git@github.com:jcvem/Argus-Web.git).
+Initialize and push the Web repo:
+bash
+cd Web
+git init
+git branch -M main
+# (Add your initial files here)
+git add .
+git commit -m "Initial commit for Web project"
+git remote add origin git@github.com:jcvem/Argus-Web.git
+git push -u origin main
+Link it as a Submodule in Argus:
+bash
+cd ..
+# Remove the empty local Web directory so git submodule can attach
+rm -rf Web
+git submodule add git@github.com:jcvem/Argus-Web.git Web
+git add .gitmodules Web
+git commit -m "Add Web repository as submodule"
+git push origin main
