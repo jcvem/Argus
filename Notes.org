@@ -1,0 +1,14 @@
+# Argus
+> The Hundred-Eye Giant, the Guardian of Io.
+
+The orverarching goal of this project is to create an information management system focus on the access control and authorization of data.
+Aside from role-based basic controls (RBAC style model), Argus can further provide ABAC style document redactions for finegrain access control.
+
+## Use Cases
+
+- 
+
+## Core Demo
+"Who has access to What?"
+"Share the quarterly report with the Sales Team but redact employee PII"
+"Help PM to ask for 3 days of speedup based on Scheduling team's current tasks volume WITHOUT showing detail Scheduling of other projects"
