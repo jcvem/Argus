@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Argus RedactCore Demo</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <!-- Security Boundary Banner -->
+  <div class="security-banner">
+    <span class="icon">🔒</span>
+    <span><strong>Security Guarantee:</strong> Originals are immutable & content-addressed. Normal subjects only receive derived, verified views.</span>
+  </div>
+
+  <header class="app-header">
+    <div class="container header-content">
+      <div class="brand">
+        <span class="logo-shield">🛡️</span>
+        <div>
+          <h1>Argus RedactCore</h1>
+          <p class="tagline">Policy-Driven Privacy-Preserved Document Views</p>
+        </div>
+      </div>
+      <div class="status-indicator">
+        <span class="dot green"></span>
+        <span id="engine-status">Engine: Online (Offline Regex Active)</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <!-- Left Column: Controls -->
+    <section class="panel control-panel">
+      <h2>1. Document Ingestion</h2>
+      <div class="form-group">
+        <label>Upload Local Document (.pdf, .docx):</label>
+        <div class="upload-dropzone" id="dropzone">
+          <input type="file" id="file-input" accept=".pdf,.docx">
+          <p>Drag & drop or <span class="highlight">browse</span></p>
+          <span class="file-name" id="selected-file-name">No file selected</span>
+        </div>
+      </div>
+
+      <div class="form-group quick-load">
+        <label>Or load synthetic test fixture:</label>
+        <div class="btn-group">
+          <button class="btn btn-secondary btn-sm" id="btn-load-pdf">Sample Report (PDF)</button>
+          <button class="btn btn-secondary btn-sm" id="btn-load-docx">Sample Report (DOCX)</button>
+          <button class="btn btn-secondary btn-sm" id="btn-load-scanned">Scanned Doc (Fail-Closed)</button>
+        </div>
+      </div>
+
+      <hr>
+
+      <h2>2. Subject & Policy Context</h2>
+      <div class="form-group">
+        <label for="subject-select">Subject Context:</label>
+        <select id="subject-select" class="input-select"></select>
+        <p class="field-desc" id="subject-desc"></p>
+      </div>
+
+      <div class="form-group">
+        <label for="policy-select">Redaction Policy:</label>
+        <select id="policy-select" class="input-select"></select>
+        <p class="field-desc" id="policy-desc"></p>
+      </div>
+
+      <button id="btn-create-view" class="btn btn-primary btn-block" disabled>
+        Create Privacy-Preserved View
+      </button>
+
+      <div id="action-status" class="status-box hidden"></div>
+    </section>
+
+    <!-- Right Column: Document Inspection & Derived View -->
+    <section class="panel results-panel">
+      <!-- Ingest Summary Section -->
+      <div class="sub-panel" id="inspection-section">
+        <h2>Document Structure & Findings</h2>
+        <div id="no-doc-notice" class="empty-state">
+          Upload a document or choose a fixture above to inspect structure and detect candidate PII.
+        </div>
+
+        <div id="doc-meta-card" class="card hidden">
+          <div class="meta-grid">
+            <div><label>Filename:</label> <span id="meta-filename">-</span></div>
+            <div><label>Format:</label> <span id="meta-format">-</span></div>
+            <div><label>Pages/Sections:</label> <span id="meta-pages">-</span></div>
+            <div><label>Source SHA-256:</label> <span id="meta-hash" class="hash-text">-</span></div>
+          </div>
+
+          <div id="warnings-box" class="warning-alert hidden"></div>
+
+          <h3>Detected Candidates (<span id="findings-count">0</span>)</h3>
+          <p class="subtext">Candidate entities identified locally. Raw values are digested and never stored.</p>
+          <div class="table-wrapper">
+            <table class="data-table" id="findings-table">
+              <thead>
+                <tr>
+                  <th>Entity</th>
+                  <th>Location</th>
+                  <th>Digest (SHA-256)</th>
+                  <th>Confidence</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Derived View Output Section -->
+      <div class="sub-panel" id="view-section">
+        <h2>Derived Privacy-Preserved View</h2>
+        <div id="no-view-notice" class="empty-state">
+          Click "Create Privacy-Preserved View" to generate an auditable, verified derivative artifact.
+        </div>
+
+        <div id="derived-view-card" class="card hidden">
+          <div class="verification-badge" id="verification-badge">
+            <span class="badge-icon">✓</span>
+            <span id="verification-text">Verification Passed: Zero PII Leaks</span>
+          </div>
+
+          <div class="meta-grid">
+            <div><label>View ID:</label> <span id="view-id">-</span></div>
+            <div><label>Policy Applied:</label> <span id="view-policy">-</span></div>
+            <div><label>Output SHA-256:</label> <span id="view-output-hash" class="hash-text">-</span></div>
+            <div><label>Operations:</label> <span id="view-operations">-</span></div>
+          </div>
+
+          <div class="view-actions">
+            <a id="btn-download-view" class="btn btn-success" target="_blank" download>
+              ⬇ Download Derived View
+            </a>
+            <button id="btn-toggle-manifest" class="btn btn-secondary">
+              📜 View Audit Manifest
+            </button>
+          </div>
+
+          <div id="manifest-container" class="manifest-card hidden">
+            <h4>Sealed Audit Manifest</h4>
+            <pre id="manifest-json"></pre>
+          </div>
+
+          <div class="preview-box">
+            <h4>Derived Document Preview</h4>
+            <div id="preview-content" class="preview-content">
+              <img id="pdf-preview-img" class="hidden" alt="Derived View Preview">
+              <pre id="docx-preview-text" class="hidden"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <div class="container">
+      <p>Argus RedactCore MVP &bull; Google Deepmind Advanced Agentic Coding &bull; Fail-Closed Privacy Architecture</p>
+    </div>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

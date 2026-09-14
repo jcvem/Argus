@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+dist/
+build/
+*.egg-info/
+.DS_Store
+
+# Data storage & runtime artifacts
+data/
+*.db
+*.sqlite3
+
+# Temporary verification scripts & prompt briefs
+_verify_*.py
+_agy_brief_*.txt
+
+# Generated fixture documents / binaries
+fixtures/*.pdf
+fixtures/*.docx
