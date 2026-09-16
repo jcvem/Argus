@@ -15,9 +15,15 @@ from redact_core.models import (
     TextBlock,
     TextSpan,
 )
+from redact_core.ocr.models import convert_ocr_result_to_blocks
+from redact_core.ocr.router import OCRRouter, default_ocr_router
 
 
-def parse_pdf(file_path_or_bytes: Path | str | bytes, filename: str = "document.pdf") -> NormalizedDocument:
+def parse_pdf(
+    file_path_or_bytes: Path | str | bytes,
+    filename: str = "document.pdf",
+    ocr_router: OCRRouter | None = None,
+) -> NormalizedDocument:
     """Parses a PDF into a normalized document model with coordinates and structure."""
     if isinstance(file_path_or_bytes, bytes):
         doc = pymupdf.open(stream=file_path_or_bytes, filetype="pdf")
@@ -131,8 +137,15 @@ def parse_pdf(file_path_or_bytes: Path | str | bytes, filename: str = "document.
                 )
             )
 
-    # Scanned document detection:
+    # Scanned document detection & OCR routing:
     is_scanned = False
+    ocr_status: str | None = None
+    ocr_provider: str | None = None
+    ocr_coverage: float | None = None
+    ocr_warnings: list[str] = []
+
+    page_geometries = [(page.rect.width, page.rect.height) for page in doc]
+
     if page_count > 0:
         avg_chars_per_page = total_text_len / page_count
         if avg_chars_per_page < 10 and total_images_count > 0:
@@ -141,6 +154,48 @@ def parse_pdf(file_path_or_bytes: Path | str | bytes, filename: str = "document.
                 "Document appears to be a scanned or image-only PDF with little or no selectable text. "
                 "Text redactions cannot be reliably applied without OCR. Fail-closed: Requires review."
             )
+
+            # Check if an OCR provider is configured and available
+            router = ocr_router or default_ocr_router
+            provider = router.resolve_provider()
+
+            if provider is not None:
+                raw_bytes = (
+                    file_path_or_bytes
+                    if isinstance(file_path_or_bytes, bytes)
+                    else path.read_bytes()
+                )
+                try:
+                    ocr_res = router.process_document(
+                        data=raw_bytes,
+                        mime_type="application/pdf",
+                        page_geometries=page_geometries,
+                    )
+                    ocr_blocks, ocr_warns = convert_ocr_result_to_blocks(ocr_res)
+                    text_blocks.extend(ocr_blocks)
+                    ocr_provider = ocr_res.provider_name
+                    ocr_coverage = ocr_res.coverage
+                    ocr_warnings = ocr_warns
+                    warnings.extend(ocr_warns)
+
+                    if ocr_res.coverage >= 0.8 and not ocr_res.requires_review:
+                        ocr_status = "complete"
+                        warnings.append(
+                            f"Scanned document processed with OCR provider '{ocr_provider}' "
+                            f"(coverage: {ocr_coverage:.1%})."
+                        )
+                    else:
+                        ocr_status = "partial" if ocr_res.coverage > 0 else "failed"
+                        warnings.append(
+                            f"Scanned document OCR yielded incomplete coverage "
+                            f"({ocr_coverage:.1%}, status: {ocr_status}). Fail-closed."
+                        )
+                except Exception as e:
+                    ocr_status = "failed"
+                    ocr_warnings.append(f"OCR processing failed: {e}")
+                    warnings.append(f"OCR processing failed: {e}. Fail-closed: Requires review.")
+            else:
+                ocr_status = "not_performed"
 
     if figures:
         warnings.append(
@@ -164,4 +219,8 @@ def parse_pdf(file_path_or_bytes: Path | str | bytes, filename: str = "document.
         warnings=warnings,
         metadata=clean_meta,
         is_scanned=is_scanned,
+        ocr_status=ocr_status,
+        ocr_provider=ocr_provider,
+        ocr_coverage=ocr_coverage,
+        ocr_warnings=ocr_warnings,
     )

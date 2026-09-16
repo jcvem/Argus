@@ -87,6 +87,10 @@ class NormalizedDocument(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     is_scanned: bool = False
+    ocr_status: str | None = None  # None, 'not_performed', 'complete', 'partial', 'failed'
+    ocr_provider: str | None = None
+    ocr_coverage: float | None = None
+    ocr_warnings: list[str] = Field(default_factory=list)
 
 
 class EntityFinding(BaseModel):

@@ -36,25 +36,37 @@ def plan_redactions(
     block_reason = None
     requires_review_count = 0
 
-    # 1. Fail-closed check: Scanned or image-only documents without OCR
+    # 1. Fail-closed check: Scanned or image-only documents without complete OCR
     if doc.is_scanned:
-        blocked = True
-        block_reason = (
-            "Fail-closed: Document appears to be scanned or image-only without selectable text. "
-            "OCR is not enabled; redaction cannot be guaranteed."
+        ocr_complete = (
+            doc.ocr_status == "complete"
+            and (doc.ocr_coverage is None or doc.ocr_coverage >= 0.8)
         )
-        return RedactionPlan(
-            plan_id=plan_id,
-            policy_id=policy.policy_id,
-            policy_version=policy.version,
-            subject_id=subject.subject_id,
-            decision_id=decision_id,
-            operations=[],
-            blocked=blocked,
-            block_reason=block_reason,
-            requires_review_count=len(doc.figures),
-            warnings=warnings,
-        )
+        if not ocr_complete:
+            blocked = True
+            if doc.ocr_status in ("partial", "failed"):
+                block_reason = (
+                    f"Fail-closed: Document is scanned and OCR coverage is incomplete "
+                    f"(status: {doc.ocr_status}, coverage: {doc.ocr_coverage or 0.0:.1%}). "
+                    "Redaction cannot be guaranteed."
+                )
+            else:
+                block_reason = (
+                    "Fail-closed: Document appears to be scanned or image-only without selectable text. "
+                    "OCR is not enabled; redaction cannot be guaranteed."
+                )
+            return RedactionPlan(
+                plan_id=plan_id,
+                policy_id=policy.policy_id,
+                policy_version=policy.version,
+                subject_id=subject.subject_id,
+                decision_id=decision_id,
+                operations=[],
+                blocked=blocked,
+                block_reason=block_reason,
+                requires_review_count=len(doc.figures),
+                warnings=warnings,
+            )
 
     # 2. Figure review checks
     if doc.figures:

@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 from redact_core.entities import default_detector
 from redact_core.models import SubjectContext
+from redact_core.ocr import default_ocr_router
 from redact_core.pipeline import default_pipeline
 from redact_core.policy import default_policy_engine
 from redact_core.storage import default_store
@@ -50,6 +51,12 @@ def handle_health() -> int:
     if default_detector.presidio_limitation:
         print(f"Notice: {default_detector.presidio_limitation}")
     print("Baseline: Deterministic offline regex detector is READY.")
+
+    ocr_h = default_ocr_router.get_health_summary()
+    print(f"OCR Router Mode: {ocr_h['mode']} | Cloud Consent Allowed: {ocr_h['cloud_consent_granted']}")
+    print(f"  - Document AI: available={ocr_h['document_ai']['available']}, configured={ocr_h['document_ai']['configured']}")
+    print(f"  - Gemini: available={ocr_h['gemini']['available']}, configured={ocr_h['gemini']['configured']}")
+    print(f"  - Offline Stub: available={ocr_h['offline']['available']}, configured={ocr_h['offline']['configured']}")
     print("Status: HEALTHY")
     return 0
 
@@ -68,6 +75,14 @@ def handle_inspect(file_path_str: str) -> int:
     print(f"SHA-256: {source_hash}")
     print(f"Format: {doc.file_type.upper()} | Pages/Sections: {doc.page_count}")
     print(f"Text Blocks: {len(doc.text_blocks)} | Tables: {len(doc.tables)} | Figures: {len(doc.figures)}")
+    if doc.is_scanned:
+        cov_str = f"{doc.ocr_coverage:.1%}" if doc.ocr_coverage is not None else "N/A"
+        print(f"Scanned Document OCR: status={doc.ocr_status or 'none'}, provider={doc.ocr_provider or 'none'}, coverage={cov_str}")
+        if doc.ocr_warnings:
+            print("OCR Warnings:")
+            for ow in doc.ocr_warnings:
+                print(f"  [*] {ow}")
+
     if doc.warnings:
         print("\nWarnings:")
         for w in doc.warnings:

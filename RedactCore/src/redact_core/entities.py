@@ -201,8 +201,23 @@ class EntityDetector:
                 source_ref=block.block_id,
                 context_metadata=doc.metadata,
             )
-            # If block has bbox and finding doesn't, assign block bbox
+            is_ocr_block = "ocr" in block.block_id.lower() or getattr(doc, "ocr_status", None) in ("complete", "partial")
             for f in findings:
+                if is_ocr_block:
+                    f.source = "ocr"
+                # If block has spans with bboxes and f has character offsets, resolve exact span bbox
+                if block.spans and f.start is not None and f.end is not None:
+                    matching_spans = [
+                        s for s in block.spans
+                        if s.bbox and len(s.bbox) == 4 and not (s.end_char <= f.start or s.start_char >= f.end)
+                    ]
+                    if matching_spans:
+                        x0 = min(s.bbox[0] for s in matching_spans)
+                        y0 = min(s.bbox[1] for s in matching_spans)
+                        x1 = max(s.bbox[2] for s in matching_spans)
+                        y1 = max(s.bbox[3] for s in matching_spans)
+                        f.bbox = [round(x0, 2), round(y0, 2), round(x1, 2), round(y1, 2)]
+                # If still no bbox, assign block bbox
                 if f.bbox is None and block.bbox:
                     f.bbox = block.bbox
             all_findings.extend(findings)

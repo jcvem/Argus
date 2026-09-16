@@ -12,6 +12,7 @@ import pymupdf
 
 from redact_core.entities import default_detector
 from redact_core.models import ResourceContext, SubjectContext
+from redact_core.ocr import default_ocr_router
 from redact_core.pipeline import default_pipeline
 from redact_core.policy import default_policy_engine
 from redact_core.storage import default_store
@@ -87,6 +88,7 @@ def get_health() -> dict[str, Any]:
             "limitation": default_detector.presidio_limitation,
         },
         "baseline_detector": "regex_deterministic",
+        "ocr": default_ocr_router.get_health_summary(),
     }
 
 
@@ -158,6 +160,10 @@ async def upload_document(file: UploadFile = File(...)) -> dict[str, Any]:
         "table_count": len(norm_doc.tables),
         "figure_count": len(norm_doc.figures),
         "is_scanned": norm_doc.is_scanned,
+        "ocr_status": norm_doc.ocr_status,
+        "ocr_provider": norm_doc.ocr_provider,
+        "ocr_coverage": norm_doc.ocr_coverage,
+        "ocr_warnings": norm_doc.ocr_warnings,
         "warnings": norm_doc.warnings,
         "metadata": norm_doc.metadata,
         "findings_count": len(findings),

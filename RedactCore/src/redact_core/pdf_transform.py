@@ -83,9 +83,9 @@ def transform_pdf(
                         text_color=(0.3, 0.2, 0.0),
                     )
 
-    # Apply all redaction annotations across all pages to completely purge content streams
+    # Apply all redaction annotations across all pages to completely purge content streams and raster pixels
     for page in doc:
-        page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE)
+        page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_PIXELS)
 
     # Sanitize document metadata if requested
     if sanitize_metadata:
