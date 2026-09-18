@@ -1,0 +1,73 @@
+訂單編號,訂單日期,銷售通路,產品編號,數量,訂單總額新台幣,折扣金額新台幣,客戶編號,客戶名稱,客戶電子郵件,地區,履約狀態,帳戶負責人
+ORD-5001,2026-09-01,品牌官網,VIC-TXT-090,1,790,0,CUS-1008,北極星工作室,contact0@victor-demo.example,日本,等待揀貨,BRAND-01
+ORD-5002,2026-09-02,門市 B2B,VIC-BAG-009,2,2580,0,CUS-1009,楓居家用品,contact1@victor-demo.example,台灣,已完成,STORE-02
+ORD-5003,2026-09-03,品牌官網,VIC-BIN-101,8,15920,1592,CUS-1010,港灣零售集團,contact2@victor-demo.example,台灣,報價中,BRAND-03
+ORD-5004,2026-09-04,品牌官網,VIC-AIR-001,1,1690,0,CUS-1011,杜松工作室,contact3@victor-demo.example,台灣,處理中,STORE-04
+ORD-5005,2026-09-05,門市 B2B,VIC-KIT-081,1,980,0,CUS-1012,常青生活,contact4@victor-demo.example,台灣,處理中,STORE-01
+ORD-5006,2026-09-06,門市 B2B,VIC-TXT-090,12,9480,474,CUS-1013,子午線概念,contact5@victor-demo.example,日本,處理中,MKT-02
+ORD-5007,2026-09-07,品牌官網,VIC-KIT-081,3,2940,0,CUS-1014,雪松生活,contact6@victor-demo.example,台灣,處理中,STORE-03
+ORD-5008,2026-09-08,第三方電商平台,VIC-CHA-051,3,17970,0,CUS-1015,晨光選物,contact7@victor-demo.example,台灣,處理中,BRAND-04
+ORD-5009,2026-09-09,品牌官網,VIC-CLK-112,3,3540,0,CUS-1016,島嶼設計,contact8@victor-demo.example,台灣,已完成,MKT-01
+ORD-5010,2026-09-10,第三方電商平台,VIC-LMP-014,3,9870,0,CUS-1017,禾木商行,contact9@victor-demo.example,台灣,等待揀貨,BRAND-02
+ORD-5011,2026-09-11,門市 B2B,VIC-BIN-101,5,9950,0,CUS-1018,白鷺生活,contact10@victor-demo.example,日本,報價中,BRAND-03
+ORD-5012,2026-09-12,門市 B2B,VIC-LGT-072,3,5670,0,CUS-1019,微光旅店,contact11@victor-demo.example,台灣,等待揀貨,STORE-04
+ORD-5013,2026-09-13,品牌官網,VIC-BAG-009,12,15480,0,CUS-1020,北極星工作室,contact0@victor-demo.example,台灣,處理中,MKT-01
+ORD-5014,2026-09-14,品牌官網,VIC-LMP-014,20,65800,0,CUS-1021,楓居家用品,contact1@victor-demo.example,台灣,報價中,MKT-02
+ORD-5015,2026-09-15,第三方電商平台,VIC-TRV-063,12,19080,0,CUS-1022,港灣零售集團,contact2@victor-demo.example,台灣,等待揀貨,MKT-03
+ORD-5016,2026-09-16,第三方電商平台,VIC-BAG-009,12,15480,1548,CUS-1023,杜松工作室,contact3@victor-demo.example,日本,已完成,STORE-04
+ORD-5017,2026-09-17,門市 B2B,VIC-TXT-090,2,1580,0,CUS-1024,常青生活,contact4@victor-demo.example,台灣,處理中,BRAND-01
+ORD-5018,2026-09-18,第三方電商平台,VIC-TRV-063,5,7950,795,CUS-1025,子午線概念,contact5@victor-demo.example,台灣,處理中,STORE-02
+ORD-5019,2026-09-19,品牌官網,VIC-DES-044,20,157800,0,CUS-1026,雪松生活,contact6@victor-demo.example,台灣,已完成,MKT-03
+ORD-5020,2026-09-20,品牌官網,VIC-CHA-051,3,17970,0,CUS-1027,晨光選物,contact7@victor-demo.example,台灣,處理中,STORE-04
+ORD-5021,2026-09-01,第三方電商平台,VIC-SHL-135,12,51480,0,CUS-1028,島嶼設計,contact8@victor-demo.example,日本,報價中,MKT-01
+ORD-5022,2026-09-02,第三方電商平台,VIC-SHL-135,12,51480,0,CUS-1029,禾木商行,contact9@victor-demo.example,台灣,等待揀貨,BRAND-02
+ORD-5023,2026-09-03,門市 B2B,VIC-BAG-009,12,15480,1548,CUS-1030,白鷺生活,contact10@victor-demo.example,台灣,等待揀貨,STORE-03
+ORD-5024,2026-09-04,門市 B2B,VIC-KIT-081,5,4900,245,CUS-1031,微光旅店,contact11@victor-demo.example,台灣,等待揀貨,BRAND-04
+ORD-5025,2026-09-05,第三方電商平台,VIC-MUG-022,8,5520,0,CUS-1032,北極星工作室,contact0@victor-demo.example,台灣,已完成,BRAND-01
+ORD-5026,2026-09-06,品牌官網,VIC-MUG-022,12,8280,828,CUS-1033,楓居家用品,contact1@victor-demo.example,日本,報價中,STORE-02
+ORD-5027,2026-09-07,第三方電商平台,VIC-LMP-014,5,16450,1645,CUS-1034,港灣零售集團,contact2@victor-demo.example,台灣,報價中,STORE-03
+ORD-5028,2026-09-08,品牌官網,VIC-ORG-031,8,7920,792,CUS-1035,杜松工作室,contact3@victor-demo.example,台灣,已完成,STORE-04
+ORD-5029,2026-09-09,第三方電商平台,VIC-SHL-135,8,34320,3432,CUS-1036,常青生活,contact4@victor-demo.example,台灣,等待揀貨,BRAND-01
+ORD-5030,2026-09-10,品牌官網,VIC-ORG-031,5,4950,248,CUS-1037,子午線概念,contact5@victor-demo.example,台灣,已完成,STORE-02
+ORD-5031,2026-09-11,第三方電商平台,VIC-SHL-135,12,51480,5148,CUS-1038,雪松生活,contact6@victor-demo.example,日本,處理中,STORE-03
+ORD-5032,2026-09-12,門市 B2B,VIC-SHL-135,1,4290,0,CUS-1039,晨光選物,contact7@victor-demo.example,台灣,等待揀貨,STORE-04
+ORD-5033,2026-09-13,品牌官網,VIC-LGT-072,8,15120,0,CUS-1040,島嶼設計,contact8@victor-demo.example,台灣,等待揀貨,BRAND-01
+ORD-5034,2026-09-14,門市 B2B,VIC-LGT-072,20,37800,0,CUS-1041,禾木商行,contact9@victor-demo.example,台灣,等待揀貨,MKT-02
+ORD-5035,2026-09-15,第三方電商平台,VIC-AIR-001,1,1690,0,CUS-1042,白鷺生活,contact10@victor-demo.example,台灣,等待揀貨,BRAND-03
+ORD-5036,2026-09-16,門市 B2B,VIC-AIR-001,2,3380,0,CUS-1008,微光旅店,contact11@victor-demo.example,日本,已完成,BRAND-04
+ORD-5037,2026-09-17,品牌官網,VIC-BIN-101,5,9950,995,CUS-1009,北極星工作室,contact0@victor-demo.example,台灣,處理中,BRAND-01
+ORD-5038,2026-09-18,門市 B2B,VIC-TXT-090,5,3950,0,CUS-1010,楓居家用品,contact1@victor-demo.example,台灣,等待揀貨,STORE-02
+ORD-5039,2026-09-19,第三方電商平台,VIC-TRAY-124,8,4720,0,CUS-1011,港灣零售集團,contact2@victor-demo.example,台灣,處理中,STORE-03
+ORD-5040,2026-09-20,門市 B2B,VIC-ORG-031,5,4950,495,CUS-1012,杜松工作室,contact3@victor-demo.example,台灣,等待揀貨,MKT-04
+ORD-5041,2026-09-01,第三方電商平台,VIC-SHL-135,8,34320,0,CUS-1013,常青生活,contact4@victor-demo.example,日本,處理中,BRAND-01
+ORD-5042,2026-09-02,品牌官網,VIC-LMP-014,3,9870,0,CUS-1014,子午線概念,contact5@victor-demo.example,台灣,處理中,STORE-02
+ORD-5043,2026-09-03,品牌官網,VIC-BAG-009,1,1290,0,CUS-1015,雪松生活,contact6@victor-demo.example,台灣,已完成,BRAND-03
+ORD-5044,2026-09-04,第三方電商平台,VIC-LMP-014,1,3290,0,CUS-1016,晨光選物,contact7@victor-demo.example,台灣,已完成,STORE-04
+ORD-5045,2026-09-05,門市 B2B,VIC-BAG-009,3,3870,0,CUS-1017,島嶼設計,contact8@victor-demo.example,台灣,報價中,BRAND-01
+ORD-5046,2026-09-06,門市 B2B,VIC-LGT-072,2,3780,0,CUS-1018,禾木商行,contact9@victor-demo.example,日本,報價中,BRAND-02
+ORD-5047,2026-09-07,第三方電商平台,VIC-CLK-112,5,5900,0,CUS-1019,白鷺生活,contact10@victor-demo.example,台灣,已完成,BRAND-03
+ORD-5048,2026-09-08,第三方電商平台,VIC-TXT-090,5,3950,198,CUS-1020,微光旅店,contact11@victor-demo.example,台灣,報價中,MKT-04
+ORD-5049,2026-09-09,品牌官網,VIC-TRAY-124,12,7080,708,CUS-1021,北極星工作室,contact0@victor-demo.example,台灣,已完成,BRAND-01
+ORD-5050,2026-09-10,第三方電商平台,VIC-CHA-051,12,71880,0,CUS-1022,楓居家用品,contact1@victor-demo.example,台灣,處理中,BRAND-02
+ORD-5051,2026-09-11,第三方電商平台,VIC-BAG-009,8,10320,0,CUS-1023,港灣零售集團,contact2@victor-demo.example,日本,報價中,BRAND-03
+ORD-5052,2026-09-12,品牌官網,VIC-ORG-031,5,4950,0,CUS-1024,杜松工作室,contact3@victor-demo.example,台灣,報價中,STORE-04
+ORD-5053,2026-09-13,門市 B2B,VIC-LMP-014,1,3290,0,CUS-1025,常青生活,contact4@victor-demo.example,台灣,已完成,BRAND-01
+ORD-5054,2026-09-14,品牌官網,VIC-SHL-135,20,85800,0,CUS-1026,子午線概念,contact5@victor-demo.example,台灣,報價中,MKT-02
+ORD-5055,2026-09-15,第三方電商平台,VIC-TRV-063,2,3180,0,CUS-1027,雪松生活,contact6@victor-demo.example,台灣,已完成,BRAND-03
+ORD-5056,2026-09-16,第三方電商平台,VIC-CHA-051,1,5990,0,CUS-1028,晨光選物,contact7@victor-demo.example,日本,等待揀貨,MKT-04
+ORD-5057,2026-09-17,門市 B2B,VIC-ORG-031,5,4950,495,CUS-1029,島嶼設計,contact8@victor-demo.example,台灣,報價中,BRAND-01
+ORD-5058,2026-09-18,品牌官網,VIC-BAG-009,3,3870,0,CUS-1030,禾木商行,contact9@victor-demo.example,台灣,已完成,STORE-02
+ORD-5059,2026-09-19,品牌官網,VIC-BIN-101,8,15920,1592,CUS-1031,白鷺生活,contact10@victor-demo.example,台灣,等待揀貨,BRAND-03
+ORD-5060,2026-09-20,第三方電商平台,VIC-AIR-001,8,13520,1352,CUS-1032,微光旅店,contact11@victor-demo.example,台灣,處理中,BRAND-04
+ORD-5061,2026-09-01,品牌官網,VIC-LGT-072,1,1890,0,CUS-1033,北極星工作室,contact0@victor-demo.example,日本,已完成,STORE-01
+ORD-5062,2026-09-02,品牌官網,VIC-LMP-014,12,39480,1974,CUS-1034,楓居家用品,contact1@victor-demo.example,台灣,已完成,STORE-02
+ORD-5063,2026-09-03,門市 B2B,VIC-BAG-009,8,10320,0,CUS-1035,港灣零售集團,contact2@victor-demo.example,台灣,已完成,MKT-03
+ORD-5064,2026-09-04,門市 B2B,VIC-TXT-090,8,6320,632,CUS-1036,杜松工作室,contact3@victor-demo.example,台灣,等待揀貨,MKT-04
+ORD-5065,2026-09-05,門市 B2B,VIC-BAG-009,12,15480,774,CUS-1037,常青生活,contact4@victor-demo.example,台灣,處理中,MKT-01
+ORD-5066,2026-09-06,門市 B2B,VIC-CHA-051,2,11980,0,CUS-1038,子午線概念,contact5@victor-demo.example,日本,等待揀貨,MKT-02
+ORD-5067,2026-09-07,品牌官網,VIC-DES-044,20,157800,0,CUS-1039,雪松生活,contact6@victor-demo.example,台灣,報價中,STORE-03
+ORD-5068,2026-09-08,品牌官網,VIC-KIT-081,1,980,0,CUS-1040,晨光選物,contact7@victor-demo.example,台灣,處理中,STORE-04
+ORD-5069,2026-09-09,第三方電商平台,VIC-ORG-031,2,1980,0,CUS-1041,島嶼設計,contact8@victor-demo.example,台灣,已完成,BRAND-01
+ORD-5070,2026-09-10,品牌官網,VIC-DES-044,3,23670,0,CUS-1042,禾木商行,contact9@victor-demo.example,台灣,報價中,STORE-02
+ORD-5071,2026-09-11,門市 B2B,VIC-BIN-101,3,5970,0,CUS-1008,白鷺生活,contact10@victor-demo.example,日本,已完成,STORE-03
+ORD-5072,2026-09-12,第三方電商平台,VIC-TRAY-124,8,4720,472,CUS-1009,微光旅店,contact11@victor-demo.example,台灣,已完成,BRAND-04

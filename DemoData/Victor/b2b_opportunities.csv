@@ -1,0 +1,19 @@
+商機編號,建立日期,客戶編號,客戶名稱,聯絡人姓名,聯絡人電子郵件,產業,銷售階段,預估金額新台幣,成交機率百分比,負責人編號,下一步,私人備註
+OPP-7001,2026-09-01,CUS-1021,港灣零售集團,林 Jamie,buyer0@victor-demo.example,精品零售,談判中,42000,50,STORE-01,等待採購方回覆,需主管核准後分享
+OPP-7002,2026-09-02,CUS-1022,杜松工作室,吳 Robin,buyer1@victor-demo.example,旅宿業,已確認需求,185000,25,STORE-02,確認交貨時程,客戶正在比較供應商
+OPP-7003,2026-09-03,CUS-1023,常青生活,黃 Taylor,buyer2@victor-demo.example,居家用品,談判中,42000,80,STORE-03,等待採購方回覆,早期概念，不得對外流通
+OPP-7004,2026-09-04,CUS-1024,子午線概念,陳 Morgan,buyer3@victor-demo.example,精品零售,談判中,76000,25,STORE-04,等待採購方回覆,客戶正在比較供應商
+OPP-7005,2026-09-05,CUS-1025,雪松生活,林 Jamie,buyer4@victor-demo.example,室內設計,談判中,42000,50,STORE-01,等待採購方回覆,客戶正在比較供應商
+OPP-7006,2026-09-06,CUS-1026,晨光選物,吳 Robin,buyer5@victor-demo.example,旅宿業,探索中,260000,25,STORE-02,確認交貨時程,客戶正在比較供應商
+OPP-7007,2026-09-07,CUS-1027,島嶼設計,黃 Taylor,buyer6@victor-demo.example,精品零售,探索中,185000,25,STORE-03,安排門市展示,需主管核准後分享
+OPP-7008,2026-09-08,CUS-1028,禾木商行,陳 Morgan,buyer7@victor-demo.example,精品零售,提案中,42000,25,STORE-04,寄送商品組合提案,早期概念，不得對外流通
+OPP-7009,2026-09-09,CUS-1029,白鷺生活,林 Jamie,buyer0@victor-demo.example,室內設計,提案中,125000,65,STORE-01,確認交貨時程,客戶要求特殊價格
+OPP-7010,2026-09-10,CUS-1030,微光旅店,吳 Robin,buyer1@victor-demo.example,旅宿業,已確認需求,76000,35,STORE-02,安排門市展示,需主管核准後分享
+OPP-7011,2026-09-11,CUS-1031,北極星工作室,黃 Taylor,buyer2@victor-demo.example,精品零售,談判中,260000,35,STORE-03,確認交貨時程,需主管核准後分享
+OPP-7012,2026-09-12,CUS-1032,楓居家用品,陳 Morgan,buyer3@victor-demo.example,室內設計,談判中,125000,25,STORE-04,等待採購方回覆,客戶正在比較供應商
+OPP-7013,2026-09-13,CUS-1033,港灣零售集團,林 Jamie,buyer4@victor-demo.example,精品零售,探索中,185000,50,STORE-01,寄送商品組合提案,需主管核准後分享
+OPP-7014,2026-09-14,CUS-1034,杜松工作室,吳 Robin,buyer5@victor-demo.example,室內設計,談判中,125000,35,STORE-02,等待採購方回覆,需主管核准後分享
+OPP-7015,2026-09-15,CUS-1035,常青生活,黃 Taylor,buyer6@victor-demo.example,居家用品,已確認需求,185000,80,STORE-03,寄送商品組合提案,客戶正在比較供應商
+OPP-7016,2026-09-16,CUS-1036,子午線概念,陳 Morgan,buyer7@victor-demo.example,室內設計,探索中,185000,50,STORE-04,安排門市展示,早期概念，不得對外流通
+OPP-7017,2026-09-17,CUS-1037,雪松生活,林 Jamie,buyer0@victor-demo.example,旅宿業,提案中,76000,80,STORE-01,寄送商品組合提案,客戶要求特殊價格
+OPP-7018,2026-09-18,CUS-1038,晨光選物,吳 Robin,buyer1@victor-demo.example,精品零售,提案中,76000,25,STORE-02,安排門市展示,客戶正在比較供應商
