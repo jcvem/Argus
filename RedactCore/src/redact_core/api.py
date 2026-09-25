@@ -1,13 +1,12 @@
-"""FastAPI application for Argus RedactCore."""
-
-from io import BytesIO
+import os
 from pathlib import Path
+import re
 from typing import Any
-from fastapi import FastAPI, File, HTTPException, UploadFile, status
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 import pymupdf
 
 from redact_core.entities import default_detector
@@ -18,8 +17,102 @@ from redact_core.policy import default_policy_engine
 from redact_core.storage import default_store
 
 
-WEB_DIR = Path(__file__).resolve().parent.parent.parent / "web"
-FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures"
+def get_default_web_dir() -> Path:
+    env_dir = os.environ.get("REDACTCORE_WEB_DIR")
+    if env_dir:
+        return Path(env_dir)
+    cwd_web = Path.cwd() / "web"
+    if cwd_web.exists():
+        return cwd_web
+    app_web = Path("/app/web")
+    if app_web.exists():
+        return app_web
+    return Path(__file__).resolve().parent.parent.parent / "web"
+
+
+def get_default_fixtures_dir() -> Path:
+    env_dir = os.environ.get("REDACTCORE_FIXTURES_DIR")
+    if env_dir:
+        return Path(env_dir)
+    cwd_fixtures = Path.cwd() / "fixtures"
+    if cwd_fixtures.exists():
+        return cwd_fixtures
+    app_fixtures = Path("/app/fixtures")
+    if app_fixtures.exists():
+        return app_fixtures
+    return Path(__file__).resolve().parent.parent.parent / "fixtures"
+
+
+WEB_DIR = get_default_web_dir()
+FIXTURES_DIR = get_default_fixtures_dir()
+
+DEFAULT_MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
+
+
+def get_max_upload_bytes() -> int:
+    """Returns configured max upload size in bytes, defaulting to 20MB."""
+    raw = os.environ.get("REDACTCORE_MAX_UPLOAD_BYTES", "").strip()
+    if raw:
+        try:
+            return int(raw)
+        except ValueError:
+            pass
+    return DEFAULT_MAX_UPLOAD_BYTES
+
+
+def get_cors_origins() -> list[str]:
+    """Returns allowed CORS origins configured by environment or safe localhost defaults."""
+    raw_cors = os.environ.get("REDACTCORE_CORS_ORIGINS", "").strip()
+    if raw_cors:
+        return [origin.strip() for origin in raw_cors.split(",") if origin.strip()]
+    return [
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
+
+
+def validate_safe_filename(filename: str | None) -> str:
+    """Validates that filename is safe, non-empty, and free of path traversal sequences."""
+    if not filename or not filename.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename missing")
+
+    # Reject null bytes, URL-encoded null bytes, path traversal sequences, and directory separators
+    if "\x00" in filename or "%00" in filename or ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid filename: path traversal characters are not permitted",
+        )
+
+    safe_name = Path(filename).name
+    if not safe_name or safe_name != filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid filename: path traversal characters are not permitted",
+        )
+
+    ext = Path(safe_name).suffix.lstrip(".").lower()
+    if ext not in ("pdf", "docx"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported file format '{ext}'. Only PDF and DOCX documents are supported.",
+        )
+    return safe_name
+
+
+def validate_view_id(view_id: str) -> str:
+    """Validates that a view_id conforms to a safe alphanumeric identifier format."""
+    if not view_id or "\x00" in view_id or ".." in view_id or "/" in view_id or "\\" in view_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid view_id")
+    if not re.match(r"^[a-zA-Z0-9_-]+$", view_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid view_id")
+    return view_id
+
 
 app = FastAPI(
     title="Argus RedactCore API",
@@ -27,10 +120,13 @@ app = FastAPI(
     version="0.1.0",
 )
 
+cors_origins = get_cors_origins()
+allow_credentials = "*" not in cors_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -73,15 +169,51 @@ class GenerateViewRequest(BaseModel):
     subject_id: str = "demo_sales_viewer"
     roles: list[str] = Field(default_factory=lambda: ["sales", "viewer"])
 
+    @field_validator("source_sha256")
+    @classmethod
+    def validate_sha(cls, v: str) -> str:
+        if not re.match(r"^[a-fA-F0-9]{64}$", v):
+            raise ValueError("Invalid source_sha256: must be a 64-character hexadecimal SHA-256 hash")
+        return v.lower()
+
+    @field_validator("ext")
+    @classmethod
+    def validate_ext(cls, v: str) -> str:
+        clean = v.lstrip(".").lower()
+        if clean not in ("pdf", "docx"):
+            raise ValueError(f"Unsupported extension '{v}'. Must be 'pdf' or 'docx'.")
+        return clean
+
+    @field_validator("policy_id", "subject_id")
+    @classmethod
+    def validate_identifiers(cls, v: str) -> str:
+        if not re.match(r"^[a-zA-Z0-9_-]+$", v):
+            raise ValueError("Identifier contains invalid characters")
+        return v
+
+
+@app.get("/healthz")
+def get_healthz() -> dict[str, str]:
+    """Lightweight liveness and readiness probe for Cloud Run and container runtimes."""
+    return {"status": "ok"}
+
 
 @app.get("/health")
 def get_health() -> dict[str, Any]:
     """Health check endpoint exposing engine, storage, and recognizer status."""
     policies = default_policy_engine.list_policies()
+    is_ephemeral = getattr(default_store, "is_ephemeral", False)
     return {
         "status": "healthy",
         "version": "0.1.0",
         "storage_root": str(default_store.root_dir),
+        "storage_ephemeral": is_ephemeral,
+        "storage_warning": (
+            "Local container storage is ephemeral; derived views and uploaded originals "
+            "will not persist across container restarts. Production deployments require "
+            "durable object storage (e.g., Google Cloud Storage) and database persistence."
+            if is_ephemeral else None
+        ),
         "policies": [p.policy_id for p in policies],
         "presidio": {
             "active": default_detector.presidio_available,
@@ -95,10 +227,25 @@ def get_health() -> dict[str, Any]:
 @app.get("/api/fixtures/{fixture_name}")
 def get_fixture(fixture_name: str) -> FileResponse:
     """Provides access to synthetic test fixtures for demonstration and smoke tests."""
-    p = FIXTURES_DIR / fixture_name
-    if not p.exists():
-        raise HTTPException(status_code=404, detail="Fixture not found")
-    return FileResponse(path=str(p), filename=fixture_name)
+    demo_enabled = os.environ.get("REDACTCORE_ENABLE_DEMO_FIXTURES", "").lower() in ("true", "1", "yes")
+    if not demo_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Synthetic fixture endpoint is disabled in hosted environments. Enable REDACTCORE_ENABLE_DEMO_FIXTURES=true for demo use only.",
+        )
+
+    if "\x00" in fixture_name or ".." in fixture_name or "/" in fixture_name or "\\" in fixture_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid fixture name")
+
+    safe_name = Path(fixture_name).name
+    if safe_name != fixture_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid fixture name")
+
+    p = (FIXTURES_DIR / safe_name).resolve()
+    if not str(p).startswith(str(FIXTURES_DIR.resolve())) or not p.exists() or not p.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixture not found")
+
+    return FileResponse(path=str(p), filename=safe_name)
 
 
 @app.get("/api/policies")
@@ -126,27 +273,62 @@ def list_subjects() -> list[dict[str, Any]]:
 
 
 @app.post("/api/upload")
-async def upload_document(file: UploadFile = File(...)) -> dict[str, Any]:
+async def upload_document(
+    request: Request,
+    file: UploadFile = File(...),
+) -> dict[str, Any]:
     """Uploads document into immutable original store and parses normalized structure.
     
     Security note: Original document bytes are NEVER returned by this endpoint.
     Only safe structural summaries and sanitized finding digests are returned.
     """
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Filename missing")
+    safe_filename = validate_safe_filename(file.filename)
+    max_bytes = get_max_upload_bytes()
 
-    ext = Path(file.filename).suffix.lstrip(".").lower()
-    if ext not in ("pdf", "docx"):
+    # Fast check on Content-Length header if provided
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > max_bytes:
+                raise HTTPException(
+                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                    detail=f"File exceeds maximum allowed upload size of {max_bytes} bytes",
+                )
+        except ValueError:
+            pass
+
+    # Stream read in chunks to prevent unbounded memory allocation
+    chunk_size = 64 * 1024
+    total_read = 0
+    chunks = []
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        total_read += len(chunk)
+        if total_read > max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"File exceeds maximum allowed upload size of {max_bytes} bytes",
+            )
+        chunks.append(chunk)
+
+    content = b"".join(chunks)
+    if len(content) == 0:
         raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file format '{ext}'. Only PDF and DOCX documents are supported.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is empty",
         )
 
-    content = await file.read()
     try:
-        source_sha256, _, norm_doc = default_pipeline.ingest_document(content, file.filename)
+        source_sha256, _, norm_doc = default_pipeline.ingest_document(content, safe_filename)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to parse document: invalid or corrupted file format",
+        )
 
     # Detect entities in document
     findings = default_detector.detect_in_document(norm_doc)
@@ -216,9 +398,10 @@ def generate_view(req: GenerateViewRequest) -> dict[str, Any]:
 @app.get("/api/views/{view_id}/manifest")
 def get_view_manifest(view_id: str) -> dict[str, Any]:
     """Retrieves the immutable audit manifest for a derived view."""
-    manifest = default_store.get_manifest(view_id)
+    safe_id = validate_view_id(view_id)
+    manifest = default_store.get_manifest(safe_id)
     if not manifest:
-        raise HTTPException(status_code=404, detail=f"Manifest for view '{view_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Manifest for view '{safe_id}' not found")
     return manifest.model_dump()
 
 
@@ -229,12 +412,13 @@ def download_derived_view(view_id: str) -> FileResponse:
     Security note: Only the transformed derivative view is served; original files
     are never reachable through this endpoint.
     """
-    manifest = default_store.get_manifest(view_id)
+    safe_id = validate_view_id(view_id)
+    manifest = default_store.get_manifest(safe_id)
     if not manifest:
         raise HTTPException(status_code=404, detail="View not found")
 
     ext = manifest.output_format
-    view_path = default_store.get_view_path(view_id, ext)
+    view_path = default_store.get_view_path(safe_id, ext)
     if not view_path or not view_path.exists():
         raise HTTPException(status_code=404, detail="Derived view file missing from store")
 
@@ -247,19 +431,20 @@ def download_derived_view(view_id: str) -> FileResponse:
     return FileResponse(
         path=str(view_path),
         media_type=media_type,
-        filename=f"derived_{view_id}.{ext}",
+        filename=f"derived_{safe_id}.{ext}",
     )
 
 
 @app.get("/api/views/{view_id}/preview")
 def preview_derived_view(view_id: str, page: int = 1) -> Response:
     """Renders a thumbnail preview of the derived view (first page as PNG for PDF, text summary for DOCX)."""
-    manifest = default_store.get_manifest(view_id)
+    safe_id = validate_view_id(view_id)
+    manifest = default_store.get_manifest(safe_id)
     if not manifest:
         raise HTTPException(status_code=404, detail="View not found")
 
     ext = manifest.output_format
-    view_path = default_store.get_view_path(view_id, ext)
+    view_path = default_store.get_view_path(safe_id, ext)
     if not view_path or not view_path.exists():
         raise HTTPException(status_code=404, detail="Derived view file missing")
 

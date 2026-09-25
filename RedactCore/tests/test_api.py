@@ -160,3 +160,133 @@ def test_api_scanned_fail_closed(client):
     v_resp = client.post("/api/views", json=view_req)
     assert v_resp.status_code == 403
     assert "blocked" in v_resp.json()["detail"].lower()
+
+
+def test_api_healthz(client):
+    resp = client.get("/healthz")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+
+
+def test_api_health_storage_metadata(client):
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "storage_root" in data
+    assert "storage_ephemeral" in data
+    assert isinstance(data["storage_ephemeral"], bool)
+
+
+def test_cors_behavior(client):
+    # Allowed origin receives CORS headers
+    resp = client.get("/healthz", headers={"Origin": "http://localhost:8080"})
+    assert resp.status_code == 200
+    assert resp.headers.get("access-control-allow-origin") == "http://localhost:8080"
+    assert resp.headers.get("access-control-allow-credentials") == "true"
+
+    # Unlisted origin is not reflected in access-control-allow-origin
+    unauthorized = client.get("/healthz", headers={"Origin": "https://unauthorized-domain.example.com"})
+    assert unauthorized.status_code == 200
+    assert unauthorized.headers.get("access-control-allow-origin") is None
+
+
+def test_cors_origins_helper(monkeypatch):
+    import os
+    from redact_core.api import get_cors_origins
+
+    monkeypatch.setenv("REDACTCORE_CORS_ORIGINS", "https://app.argus.internal, https://demo.argus.internal")
+    origins = get_cors_origins()
+    assert origins == ["https://app.argus.internal", "https://demo.argus.internal"]
+
+    monkeypatch.delenv("REDACTCORE_CORS_ORIGINS", raising=False)
+    default_origins = get_cors_origins()
+    assert "http://localhost:8080" in default_origins
+    assert "*" not in default_origins
+
+
+def test_safe_filename_handling_and_path_traversal(client):
+    # Path traversal patterns must be rejected at API boundary
+    traversal_filenames = [
+        "../../etc/passwd.pdf",
+        "..\\..\\windows\\win.ini.pdf",
+        "/tmp/absolute_path.pdf",
+        "subfolder/test.pdf",
+        "test\x00traversal.pdf",
+        "   ",
+        "invalid_ext.exe",
+    ]
+    for bad_name in traversal_filenames:
+        resp = client.post(
+            "/api/upload",
+            files={"file": (bad_name, b"dummy content", "application/pdf")},
+        )
+        assert resp.status_code == 400, f"Expected 400 for '{bad_name}', got {resp.status_code}"
+
+
+def test_upload_empty_file_rejected(client):
+    resp = client.post(
+        "/api/upload",
+        files={"file": ("empty.pdf", b"", "application/pdf")},
+    )
+    assert resp.status_code == 400
+    assert "empty" in resp.json()["detail"].lower()
+
+
+def test_upload_max_size_enforcement(client, monkeypatch):
+    # Enforce boundary max upload bytes
+    monkeypatch.setenv("REDACTCORE_MAX_UPLOAD_BYTES", "50")
+    large_payload = b"%PDF-1.4 " + b"X" * 100
+    resp = client.post(
+        "/api/upload",
+        files={"file": ("large.pdf", large_payload, "application/pdf")},
+    )
+    assert resp.status_code == 413
+    assert "exceeds maximum allowed upload size" in resp.json()["detail"].lower()
+
+
+def test_fixture_gating_and_traversal_rejection(client, monkeypatch):
+    import os
+
+    # When disabled (default in hosted mode), returns 403 Forbidden
+    monkeypatch.delenv("REDACTCORE_ENABLE_DEMO_FIXTURES", raising=False)
+    resp = client.get("/api/fixtures/sample_report.pdf")
+    assert resp.status_code == 403
+    assert "disabled" in resp.json()["detail"].lower()
+
+    # When enabled, serves synthetic fixture
+    monkeypatch.setenv("REDACTCORE_ENABLE_DEMO_FIXTURES", "true")
+    resp_enabled = client.get("/api/fixtures/sample_report.pdf")
+    assert resp_enabled.status_code == 200
+
+    # Path traversal within fixture route must be rejected
+    resp_traversal = client.get("/api/fixtures/..%2F..%2Fpyproject.toml")
+    assert resp_traversal.status_code in (400, 404)
+
+
+def test_view_id_validation_path_traversal(client):
+    # Invalid characters or traversal in view_id rejected with 400
+    resp1 = client.get("/api/views/../../etc/passwd/manifest")
+    assert resp1.status_code in (400, 404)
+
+    resp2 = client.get("/api/views/invalid;id/download")
+    assert resp2.status_code == 400
+
+
+def test_generate_view_request_validation(client):
+    # Invalid sha256 (not 64-char hex)
+    resp = client.post("/api/views", json={
+        "source_sha256": "invalid_hash",
+        "ext": "pdf",
+        "policy_id": "sales-quarterly",
+        "subject_id": "demo_sales_viewer",
+    })
+    assert resp.status_code == 422
+
+    # Invalid extension
+    resp_ext = client.post("/api/views", json={
+        "source_sha256": "a" * 64,
+        "ext": "exe",
+        "policy_id": "sales-quarterly",
+        "subject_id": "demo_sales_viewer",
+    })
+    assert resp_ext.status_code == 422

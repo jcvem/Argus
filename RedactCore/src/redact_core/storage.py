@@ -10,6 +10,24 @@ from redact_core.models import ViewManifest
 DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
 
+def get_default_data_dir() -> Path:
+    """Returns the configured data directory from environment or default repo location."""
+    env_dir = os.environ.get("REDACTCORE_STORAGE_DIR") or os.environ.get("REDACTCORE_DATA_DIR")
+    if env_dir:
+        return Path(env_dir)
+    return DEFAULT_DATA_DIR
+
+
+def is_storage_ephemeral(path: Path) -> bool:
+    """Determines whether the given storage root is ephemeral (e.g. /tmp, container root)."""
+    p_str = str(path.resolve())
+    if p_str.startswith("/tmp") or p_str.startswith("/var/tmp") or "/tmp/" in p_str:
+        return True
+    if os.environ.get("REDACTCORE_STORAGE_EPHEMERAL", "").lower() in ("true", "1", "yes"):
+        return True
+    return False
+
+
 class DocumentStore:
     """Manages immutable content-addressed storage for original documents,
     isolated derived views, and audit manifests.
@@ -17,10 +35,11 @@ class DocumentStore:
 
     def __init__(self, root_dir: Path | str | None = None):
         if root_dir is None:
-            self.root_dir = DEFAULT_DATA_DIR
+            self.root_dir = get_default_data_dir()
         else:
             self.root_dir = Path(root_dir)
 
+        self.is_ephemeral = is_storage_ephemeral(self.root_dir)
         self.originals_dir = self.root_dir / "originals"
         self.views_dir = self.root_dir / "views"
         self.manifests_dir = self.root_dir / "manifests"

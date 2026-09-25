@@ -1,5 +1,4 @@
-"""Policy loader and deterministic evaluation engine."""
-
+import os
 from pathlib import Path
 import yaml
 from redact_core.models import (
@@ -10,14 +9,29 @@ from redact_core.models import (
 )
 
 
-POLICIES_DIR = Path(__file__).resolve().parent.parent.parent / "policies"
+def get_default_policies_dir() -> Path:
+    """Finds policy directory via env var, working directory, app root, or repo tree."""
+    env_dir = os.environ.get("REDACTCORE_POLICIES_DIR")
+    if env_dir:
+        return Path(env_dir)
+    cwd_policies = Path.cwd() / "policies"
+    if cwd_policies.exists():
+        return cwd_policies
+    app_policies = Path("/app/policies")
+    if app_policies.exists():
+        return app_policies
+    repo_policies = Path(__file__).resolve().parent.parent.parent / "policies"
+    return repo_policies
+
+
+POLICIES_DIR = get_default_policies_dir()
 
 
 class PolicyEngine:
     """Loads and evaluates redaction policies against subject and resource context."""
 
     def __init__(self, policies_dir: Path | str | None = None):
-        self.policies_dir = Path(policies_dir) if policies_dir else POLICIES_DIR
+        self.policies_dir = Path(policies_dir) if policies_dir else get_default_policies_dir()
         self._policies: dict[str, RedactionPolicy] = {}
         self.reload_policies()
 

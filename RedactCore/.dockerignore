@@ -1,0 +1,48 @@
+# Git and VCS
+.git/
+.gitignore
+
+# Virtual environment & dependencies
+.venv/
+env/
+venv/
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing & linting artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Local data & storage (container storage is ephemeral)
+data/
+*.db
+*.sqlite3
+
+# Secrets and environment configs
+.env
+.env.*
+*.key
+*.pem
+*.crt
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Scratch & temporary verification files
+tmp/
+_verify_*.py
+_bench*.py
+_agy_brief_*

@@ -106,9 +106,11 @@ uv run redact-core verify view_<view_id>
 
 The FastAPI application is defined in `redact_core.api:app`:
 
-- `GET /health` &mdash; System health, storage status, policy listing, recognizer status.
+- `GET /healthz` &mdash; Lightweight liveness and readiness probe for container runtimes and Cloud Run.
+- `GET /health` &mdash; System health, storage status (including ephemeral warning), policy listing, recognizer status.
 - `GET /api/policies` &mdash; List available redaction policies.
 - `GET /api/subjects` &mdash; Preconfigured demo subjects demonstrating role-based differentiation.
+- `GET /api/fixtures/{fixture_name}` &mdash; Synthetic test fixture access (gated by `REDACTCORE_ENABLE_DEMO_FIXTURES=true`).
 - `POST /api/upload` &mdash; Ingests PDF/DOCX into immutable storage and returns document structure and finding digests (never raw PII).
 - `POST /api/views` &mdash; Generates, verifies, and stores a derived view for a given subject and policy.
 - `GET /api/views/{view_id}/manifest` &mdash; Retrieves the immutable audit manifest for a derived view.
@@ -117,14 +119,120 @@ The FastAPI application is defined in `redact_core.api:app`:
 
 ---
 
+## Hosted Demo API
+
+This section details hosting the API for remote stakeholder demonstrations (e.g. via Cloud Run or Docker).
+
+> [!WARNING]
+> **Demo-Only Boundary**: This hosted configuration is strictly intended for demonstration purposes. It does **not** provide production authentication or multi-tenant authorization. Caller-provided `subject_id` and `roles` parameters are accepted only to demonstrate policy differentiation across roles.
+
+### 1. Local Run
+
+```bash
+# Start locally with safe localhost defaults
+uv run uvicorn redact_core.api:app --host 0.0.0.0 --port 8080
+```
+
+### 2. Docker Build & Run
+
+A production-ready `Dockerfile` with a non-root runtime user (`appuser:1000`) is included:
+
+```bash
+# Build the container image
+docker build -t redact-core:demo .
+
+# Run container locally exposing port 8080
+docker run --rm -p 8080:8080 \
+  -e PORT=8080 \
+  -e REDACTCORE_STORAGE_DIR=/tmp/redactcore-data \
+  -e REDACTCORE_ENABLE_DEMO_FIXTURES=true \
+  redact-core:demo
+```
+
+### 3. Cloud Run Deployment
+
+Deploy to Google Cloud Run using `cloud-run.yaml` or `gcloud run deploy`:
+
+```bash
+# Using gcloud CLI (replace PROJECT_ID and REGION with your GCP parameters)
+gcloud run deploy redact-core-demo \
+  --image gcr.io/PROJECT_ID/redact-core:latest \
+  --region REGION \
+  --platform managed \
+  --allow-unauthenticated \
+  --port 8080 \
+  --memory 1Gi \
+  --cpu 1 \
+  --max-instances 3 \
+  --timeout 300 \
+  --set-env-vars "REDACTCORE_STORAGE_DIR=/tmp/redactcore-data,REDACTCORE_ENABLE_DEMO_FIXTURES=true,REDACTCORE_CORS_ORIGINS=https://argus-demo.example.com,REDACTCORE_MAX_UPLOAD_BYTES=20971520"
+```
+
+Or deploy declaratively:
+```bash
+gcloud run services replace cloud-run.yaml --region REGION
+```
+
+### 4. Configuration Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `8080` | Listening port for the Uvicorn HTTP server. |
+| `REDACTCORE_STORAGE_DIR` | `./data` (local) / `/tmp/redactcore-data` (container) | Target root directory for immutable originals, derived views, and manifests. |
+| `REDACTCORE_CORS_ORIGINS` | Safe localhost origins | Comma-separated list of allowed origins. Wildcard `*` disables credentials. |
+| `REDACTCORE_ENABLE_DEMO_FIXTURES` | `false` (default) | Gating flag for `/api/fixtures/{name}` to prevent serving raw demo files in public environments unless explicitly enabled for demos. |
+| `REDACTCORE_MAX_UPLOAD_BYTES` | `20971520` (20 MB) | Enforced boundary limit for incoming document uploads. |
+
+### 5. Architectural & Security Limitations
+
+- **Ephemeral Storage**: Container disk space in Cloud Run is strictly ephemeral. Files written to `/tmp/redactcore-data` will disappear when container instances scale down or restart. Production persistence requires durable cloud object storage (such as Google Cloud Storage or AWS S3) and a metadata database.
+- **Identity & Access**: In this demo service, callers can specify `subject_id` and `roles` in `POST /api/views` to demonstrate redaction behaviors across different clearance levels. In production, caller-provided roles **must never be trusted**. True enterprise deployments require identity integration (Argus Cerberus / OIDC JWTs) where user clearance is authenticated and cryptographically verified.
+- **Direct Streaming**: For large production payloads, documents should be uploaded and downloaded via short-lived signed URLs directly to/from cloud object storage rather than streamed through API container memory.
+
+### 6. Demonstration Walkthrough (curl)
+
+Follow this deterministic flow to test the API remotely:
+
+```bash
+# 1. Health Probe
+curl -s http://localhost:8080/healthz
+# Response: {"status":"ok"}
+
+# 2. Inspect Subsystems & Recognizer
+curl -s http://localhost:8080/health | jq .
+
+# 3. Ingest Synthetic Document
+UPLOAD_RES=$(curl -s -F "file=@fixtures/sample_report.pdf;type=application/pdf" http://localhost:8080/api/upload)
+SOURCE_SHA=$(echo $UPLOAD_RES | jq -r .source_sha256)
+echo "Uploaded SHA: $SOURCE_SHA"
+
+# 4. Generate Derived View for Sales Viewer
+VIEW_RES=$(curl -s -H "Content-Type: application/json" \
+  -d "{\"source_sha256\":\"$SOURCE_SHA\",\"ext\":\"pdf\",\"policy_id\":\"sales-quarterly\",\"subject_id\":\"demo_sales_viewer\",\"roles\":[\"sales\",\"viewer\"]}" \
+  http://localhost:8080/api/views)
+VIEW_ID=$(echo $VIEW_RES | jq -r .view_id)
+echo "Generated View ID: $VIEW_ID"
+
+# 5. Fetch Immutable Audit Manifest (Zero Raw PII)
+curl -s http://localhost:8080/api/views/$VIEW_ID/manifest | jq .
+
+# 6. Download Verified Redacted PDF
+curl -s -o derived_sales.pdf http://localhost:8080/api/views/$VIEW_ID/download
+```
+
+---
+
 ## Verification & Testing
 
 ```bash
-# Run full pytest suite
+# Run full pytest suite (23+ tests)
 uv run pytest -q
 
-# Run end-to-end API smoke test
+# Run end-to-end API smoke test (Python TestClient)
 uv run python scripts/smoke_test_api.py
+
+# Run standalone HTTP demo verification against local/remote server
+./scripts/demo_api.sh http://localhost:8080
 
 # Validate generated view against its manifest and check for PII leaks
 uv run python scripts/validate_view.py <view_id>
