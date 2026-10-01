@@ -20,3 +20,6 @@ _agy_brief_*.txt
 # Generated fixture documents / binaries
 fixtures/*.pdf
 fixtures/*.docx
+
+.env
+.env.local

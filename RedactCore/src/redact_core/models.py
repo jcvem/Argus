@@ -110,13 +110,15 @@ class EntityFinding(BaseModel):
     start: int | None = None
     end: int | None = None
     confidence: float
-    source: str  # 'regex', 'presidio', 'manual', 'ocr'
+    source: str  # 'regex', 'presidio', 'manual', 'ocr', 'gemini_llm'
     requires_review: bool = False
+    category: str | None = None
+    rationale: str | None = None
     raw_value: str = Field(..., exclude=True)
 
     def safe_summary(self) -> dict[str, Any]:
         """Returns safe representation suitable for public API responses."""
-        return {
+        summary = {
             "finding_id": self.finding_id,
             "entity_type": self.entity_type,
             "value_digest": self.value_digest,
@@ -127,6 +129,11 @@ class EntityFinding(BaseModel):
             "source": self.source,
             "requires_review": self.requires_review,
         }
+        if self.category is not None:
+            summary["category"] = self.category
+        if self.rationale is not None:
+            summary["rationale"] = self.rationale
+        return summary
 
 
 class PolicyRule(BaseModel):

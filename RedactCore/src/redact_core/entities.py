@@ -8,6 +8,11 @@ import logging
 import re
 from typing import Any
 from redact_core.hashing import hash_sensitive_value
+from redact_core.llm_entities import (
+    EntityLLMConfigurationError,
+    GeminiEntityInspector,
+    is_entity_llm_strict,
+)
 from redact_core.models import EntityFinding, NormalizedDocument
 
 
@@ -56,13 +61,14 @@ REGEX_PATTERNS: dict[str, list[re.Pattern]] = {
 
 
 class EntityDetector:
-    """Hybrid entity detector using deterministic regex recognizers and optional Presidio."""
+    """Hybrid entity detector using deterministic regex recognizers, optional Presidio, and optional Gemini LLM."""
 
-    def __init__(self):
+    def __init__(self, llm_inspector: GeminiEntityInspector | None = None):
         self.presidio_available = False
         self.presidio_limitation: str | None = None
         self.analyzer = None
         self._init_presidio_safely()
+        self.llm_inspector = llm_inspector or GeminiEntityInspector()
 
     def _init_presidio_safely(self) -> None:
         """Attempts to initialize Presidio without triggering large background model downloads."""
@@ -187,7 +193,71 @@ class EntityDetector:
             except Exception as e:
                 logger.warning(f"Presidio analyze error: {e}")
 
+        # 4. Optional Gemini LLM inspection (strictly gated by feature flag and cloud consent)
+        if self.llm_inspector.is_enabled():
+            if not self.llm_inspector.is_cloud_consent_granted():
+                msg = (
+                    "Gemini LLM inspection enabled but cloud consent not granted "
+                    "(REDACTCORE_ALLOW_CLOUD_LLM=false)."
+                )
+                self.llm_inspector.last_limitation = msg
+                if is_entity_llm_strict():
+                    raise EntityLLMConfigurationError(msg)
+                logger.info(msg)
+            elif not self.llm_inspector.is_configured():
+                msg = (
+                    f"Gemini LLM inspection enabled and permitted, but provider "
+                    f"({self.llm_inspector.mode} mode) is not configured with credentials."
+                )
+                self.llm_inspector.last_limitation = msg
+                if is_entity_llm_strict():
+                    raise EntityLLMConfigurationError(msg)
+                logger.info(msg)
+            elif len(text.strip()) >= self.llm_inspector.min_chunk_chars:
+                try:
+                    llm_findings = self.llm_inspector.inspect_text(
+                        text=text,
+                        page_or_section=page_or_section,
+                        source_ref=source_ref,
+                    )
+                    for lf in llm_findings:
+                        # Exact span deduplication
+                        if (lf.entity_type, lf.start, lf.end) in seen_spans:
+                            continue
+
+                        # Overlap check: deterministic regex / metadata takes priority
+                        has_overlap = False
+                        if lf.start is not None and lf.end is not None:
+                            for ef in findings:
+                                if ef.start is not None and ef.end is not None:
+                                    if not (lf.end <= ef.start or lf.start >= ef.end):
+                                        has_overlap = True
+                                        break
+
+                        if not has_overlap:
+                            seen_spans.add((lf.entity_type, lf.start, lf.end))
+                            findings.append(lf)
+                except Exception as e:
+                    self.llm_inspector.last_limitation = f"Gemini LLM inspection failed: {type(e).__name__}"
+                    if is_entity_llm_strict():
+                        raise
+                    logger.warning(
+                        "Gemini LLM inspection error bypassed (fallback to deterministic): %s",
+                        type(e).__name__,
+                    )
+
         return findings
+
+    def get_health_summary(self) -> dict[str, Any]:
+        """Observability health summary for entity recognizers."""
+        return {
+            "presidio": {
+                "active": self.presidio_available,
+                "limitation": self.presidio_limitation,
+            },
+            "baseline_detector": "regex_deterministic",
+            "llm_inspector": self.llm_inspector.check_health(),
+        }
 
     def detect_in_document(self, doc: NormalizedDocument) -> list[EntityFinding]:
         """Detects candidate entities across all blocks, tables, and metadata in a NormalizedDocument."""
@@ -203,7 +273,7 @@ class EntityDetector:
             )
             is_ocr_block = "ocr" in block.block_id.lower() or getattr(doc, "ocr_status", None) in ("complete", "partial")
             for f in findings:
-                if is_ocr_block:
+                if is_ocr_block and f.source != "gemini_llm":
                     f.source = "ocr"
                 # If block has spans with bboxes and f has character offsets, resolve exact span bbox
                 if block.spans and f.start is not None and f.end is not None:

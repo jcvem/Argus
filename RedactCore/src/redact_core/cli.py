@@ -5,11 +5,14 @@ import json
 from pathlib import Path
 import sys
 from redact_core.entities import default_detector
+from redact_core.env import load_env_safely
 from redact_core.models import SubjectContext
 from redact_core.ocr import default_ocr_router
 from redact_core.pipeline import default_pipeline
 from redact_core.policy import default_policy_engine
 from redact_core.storage import default_store
+
+load_env_safely()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -57,6 +60,17 @@ def handle_health() -> int:
     print(f"  - Document AI: available={ocr_h['document_ai']['available']}, configured={ocr_h['document_ai']['configured']}")
     print(f"  - Gemini: available={ocr_h['gemini']['available']}, configured={ocr_h['gemini']['configured']}")
     print(f"  - Offline Stub: available={ocr_h['offline']['available']}, configured={ocr_h['offline']['configured']}")
+
+    llm_h = default_detector.llm_inspector.check_health()
+    print(
+        f"LLM Entity Inspector: enabled={llm_h['enabled']} | "
+        f"cloud_consent={llm_h['cloud_consent_granted']} | "
+        f"available={llm_h['available']} | "
+        f"configured={llm_h['configured']}"
+    )
+    if llm_h.get("limitation"):
+        print(f"  - Limitation: {llm_h['limitation']}")
+
     print("Status: HEALTHY")
     return 0
 

@@ -100,7 +100,7 @@ class GeminiOCRProvider(OCRProvider):
         client: Any = None,
     ):
         self.mode = (mode or os.environ.get("REDACTCORE_GEMINI_MODE", "vertex")).lower().strip()
-        self.model = model or os.environ.get("REDACTCORE_GEMINI_MODEL", "gemini-2.5-flash")
+        self.model = model or os.environ.get("REDACTCORE_GEMINI_MODEL", "gemini-3.8-flash")
         self.api_key = api_key or os.environ.get("REDACTCORE_GEMINI_API_KEY")
         self.project_id = (
             project_id

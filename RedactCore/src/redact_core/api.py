@@ -10,11 +10,14 @@ from pydantic import BaseModel, Field, field_validator
 import pymupdf
 
 from redact_core.entities import default_detector
+from redact_core.env import load_env_safely
 from redact_core.models import ResourceContext, SubjectContext
 from redact_core.ocr import default_ocr_router
 from redact_core.pipeline import default_pipeline
 from redact_core.policy import default_policy_engine
 from redact_core.storage import default_store
+
+load_env_safely()
 
 
 def get_default_web_dir() -> Path:
@@ -221,6 +224,7 @@ def get_health() -> dict[str, Any]:
         },
         "baseline_detector": "regex_deterministic",
         "ocr": default_ocr_router.get_health_summary(),
+        "llm_inspector": default_detector.llm_inspector.check_health(),
     }
 
 
