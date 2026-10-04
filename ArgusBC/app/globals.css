@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --canvas-bg: #f4f5f7;
+    --surface-bg: #ffffff;
+    --surface-subtle: #f9fafb;
+    --border-subtle: #e5e7eb;
+    --border-divider: #f3f4f6;
+    --text-primary: #111827;
+    --text-secondary: #4b5563;
+    --text-muted: #9ca3af;
+    --brand-accent: #7c3aed;
+    --brand-surface: #f5f3ff;
+    --action-green: #10b981;
+    --blocked-red: #ef4444;
+  }
+
+  html, body {
+    background-color: #f4f5f7;
+    color: #111827;
+    overflow-x: clip;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .dark html, .dark body {
+    background-color: #111827;
+    color: #f9fafb;
+  }
+}
+
+/* Accessibility: Prefers Reduced Motion override */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
