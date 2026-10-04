@@ -273,7 +273,7 @@ export default function SignInPage() {
                   required
                   placeholder="••••••••••••"
                   value={password}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-3.5 py-2.5 glass-frost-input rounded-xl text-xs placeholder:text-white/35 focus:outline-none transition-all"
                 />
               </div>
