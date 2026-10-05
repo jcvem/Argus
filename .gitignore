@@ -1,2 +1,5 @@
 .DS_Store
 .env
+Tools/*
+_*.md
+_*.txt
