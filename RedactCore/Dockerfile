@@ -26,7 +26,7 @@ COPY pyproject.toml README.md ./
 
 # Copy application source tree and install dependencies
 COPY src/ ./src/
-RUN uv pip install --no-cache --system .
+RUN uv pip install --no-cache --system ".[ocr-gemini]"
 
 # Copy runtime configuration, policies, static web UI, and demo fixtures
 COPY policies/ ./policies/
