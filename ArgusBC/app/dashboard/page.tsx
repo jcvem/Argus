@@ -278,7 +278,7 @@ export default function DashboardPage() {
                   placeholder="Filter timeline…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:border-[#7c3aed] focus:ring-1 focus:ring-[#7c3aed] w-52"
+                  className="pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 w-52"
                 />
               </div>
 
@@ -287,7 +287,7 @@ export default function DashboardPage() {
                 onClick={() => setShowTelemetry(!showTelemetry)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5 ${
                   showTelemetry
-                    ? "bg-[#f5f3ff] text-[#7c3aed] border-[#ddd6fe]"
+                    ? "bg-zinc-100 text-zinc-900 border-zinc-300 font-semibold"
                     : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
                 }`}
               >
@@ -310,12 +310,12 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2 text-xs bg-white p-2.5 rounded-xl border border-gray-200">
               <span className="text-gray-400 font-medium">Active filters:</span>
               {roleFilter && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#f5f3ff] text-[#7c3aed] border border-[#ddd6fe]">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-zinc-100 text-zinc-800 border border-zinc-200">
                   <span>Role: {roleFilter}</span>
                   <button
                     type="button"
                     onClick={() => setRoleFilter(null)}
-                    className="hover:text-[#6d28d9] font-bold ml-1"
+                    className="hover:text-zinc-900 font-bold ml-1"
                   >
                     &times;
                   </button>
@@ -389,7 +389,7 @@ export default function DashboardPage() {
                     setRoleFilter(null);
                     setSearchQuery("");
                   }}
-                  className="px-3 py-1.5 bg-[#f5f3ff] text-[#7c3aed] rounded-lg text-xs font-medium mt-2"
+                  className="px-3 py-1.5 bg-zinc-100 text-zinc-900 hover:bg-zinc-200 rounded-lg text-xs font-medium mt-2"
                 >
                   Reset Filters
                 </button>
@@ -449,7 +449,7 @@ export default function DashboardPage() {
                 </Link>
                 <Link
                   href="/views/new"
-                  className="px-3 py-1.5 text-xs font-medium bg-[#f5f3ff] text-[#7c3aed] border border-[#ddd6fe] rounded-lg transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-800 rounded-lg transition-colors"
                 >
                   Generate View
                 </Link>
@@ -536,7 +536,7 @@ export default function DashboardPage() {
                             </button>
                             <Link
                               href="/views/new"
-                              className="px-2.5 py-1 text-xs font-medium bg-[#f5f3ff] text-[#7c3aed] border border-[#ddd6fe] hover:bg-[#ede9fe] rounded-md transition-colors"
+                              className="px-2.5 py-1 text-xs font-medium bg-zinc-100 text-zinc-900 border border-zinc-200 hover:bg-zinc-200 rounded-md transition-colors"
                             >
                               Derive
                             </Link>

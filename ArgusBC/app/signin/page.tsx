@@ -94,11 +94,11 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-[#0c051a] text-white flex flex-col justify-between p-4 sm:p-8 font-sans selection:bg-purple-500/30 selection:text-white">
+    <div className="min-h-screen relative overflow-hidden bg-zinc-950 text-white flex flex-col justify-between p-4 sm:p-8 font-sans selection:bg-zinc-700/50 selection:text-white">
       {/* Dynamic Glassmorphism Atmospheric Background Orbs */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {/* Top-Center Electric Purple Ambient Glow */}
-        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[38rem] h-[38rem] rounded-full bg-[#7c3aed]/40 blur-[130px]" />
+        {/* Top-Center Ambient Glow */}
+        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[38rem] h-[38rem] rounded-full bg-zinc-700/25 blur-[130px]" />
 
         {/* Right Crescent Sky-Cyan Disc (matching reference image sphere edge) */}
         <div className="absolute top-1/2 -translate-y-1/2 right-[-6rem] lg:right-[-2rem] w-80 sm:w-[26rem] h-80 sm:h-[26rem] rounded-full border border-sky-400/40 bg-[#0284c7]/40 blur-[90px]" />
@@ -203,7 +203,7 @@ export default function SignInPage() {
               type="button"
               onClick={handleGoogleSubmit}
               disabled={localLoading}
-              className="w-full py-3 px-4 glass-frost-button rounded-xl text-xs font-medium text-white flex items-center justify-center gap-3 transition-all hover:bg-white/[0.14] border border-white/20 shadow-md focus:outline-none focus:ring-2 focus:ring-purple-400/40 disabled:opacity-50"
+              className="w-full py-3 px-4 glass-frost-button rounded-xl text-xs font-medium text-white flex items-center justify-center gap-3 transition-all hover:bg-white/[0.14] border border-white/20 shadow-md focus:outline-none focus:ring-2 focus:ring-zinc-400/40 disabled:opacity-50"
             >
               {/* Google G Mark SVG */}
               <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -282,7 +282,7 @@ export default function SignInPage() {
             <button
               type="submit"
               disabled={localLoading}
-              className="w-full py-3 bg-white text-gray-950 hover:bg-white/90 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_4px_24px_rgba(255,255,255,0.22)] focus:outline-none focus:ring-2 focus:ring-purple-400/40 disabled:opacity-50"
+              className="w-full py-3 bg-white text-gray-950 hover:bg-white/90 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_4px_24px_rgba(255,255,255,0.22)] focus:outline-none focus:ring-2 focus:ring-zinc-400/40 disabled:opacity-50"
             >
               {localLoading ? (
                 <span className="inline-block w-3.5 h-3.5 border-2 border-gray-950 border-t-transparent rounded-full animate-spin" />
@@ -305,7 +305,7 @@ export default function SignInPage() {
                     setFormError(null);
                     setMode("signup");
                   }}
-                  className="text-purple-300 hover:text-purple-200 hover:underline font-medium transition-colors"
+                  className="text-zinc-300 hover:text-zinc-100 hover:underline font-medium transition-colors"
                 >
                   Create credentials
                 </button>
@@ -320,7 +320,7 @@ export default function SignInPage() {
                     setFormError(null);
                     setMode("signin");
                   }}
-                  className="text-purple-300 hover:text-purple-200 hover:underline font-medium transition-colors"
+                  className="text-zinc-300 hover:text-zinc-100 hover:underline font-medium transition-colors"
                 >
                   Sign in
                 </button>

@@ -151,7 +151,7 @@ export default function PoliciesPage() {
                 value={promptInput}
                 onChange={(e) => setPromptInput(e.target.value)}
                 placeholder="e.g. Redact salary, mask telephone numbers, allow employee IDs for compliance review..."
-                className="w-full p-3 bg-white border border-gray-200 text-xs text-gray-900 rounded-xl focus:outline-none focus:border-[#7c3aed] focus:ring-1 focus:ring-[#7c3aed] font-sans"
+                className="w-full p-3 bg-white border border-gray-200 text-xs text-gray-900 rounded-xl focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 font-sans"
               />
 
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -184,7 +184,7 @@ export default function PoliciesPage() {
 
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 shadow-xs"
+                  className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 shadow-xs"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Translate to Candidate Rules</span>

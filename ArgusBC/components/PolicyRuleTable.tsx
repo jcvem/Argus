@@ -78,7 +78,7 @@ export function PolicyRuleTable({ policies, subjects }: PolicyRuleTableProps) {
                   onClick={() => setSelectedPolicyId(p.policy_id)}
                   className={`text-left p-3.5 rounded-xl border transition-all ${
                     isSelected
-                      ? "bg-white border-[#7c3aed] ring-2 ring-[#7c3aed]/10 shadow-xs"
+                      ? "bg-white border-zinc-900 ring-2 ring-zinc-900/10 shadow-xs"
                       : "bg-white border-gray-200 hover:border-gray-300"
                   }`}
                 >
@@ -101,14 +101,14 @@ export function PolicyRuleTable({ policies, subjects }: PolicyRuleTableProps) {
         {/* Demo Subject Persona */}
         <div className="space-y-2">
           <label className="text-[11px] font-medium uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
-            <UserCheck className="w-3.5 h-3.5 text-argus-brand" />
+            <UserCheck className="w-3.5 h-3.5 text-zinc-900" />
             <span>Demo Subject Context</span>
           </label>
 
           <select
             value={selectedSubjectId}
             onChange={(e) => setSelectedSubjectId(e.target.value)}
-            className="w-full p-2.5 bg-white border border-gray-200 text-xs text-gray-800 rounded-xl focus:outline-none focus:border-[#7c3aed] focus:ring-1 focus:ring-[#7c3aed]"
+            className="w-full p-2.5 bg-white border border-gray-200 text-xs text-gray-800 rounded-xl focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
           >
             {subjects.map((s) => (
               <option key={s.subject_id} value={s.subject_id}>

@@ -47,21 +47,21 @@ export function ArgusLogo({ className = "", size = "md" }: ArgusLogoProps) {
           strokeWidth="1.2"
         />
 
-        {/* Iris outer ring with the Argus brand accent */}
+        {/* Iris outer ring with the Argus zinc brand accent */}
         <circle
           cx="12"
           cy="12"
           r="4.8"
-          stroke="#8b5cf6"
+          stroke="#71717a"
           strokeWidth="1.5"
         />
 
-        {/* Solid inner iris accent; avoid decorative gradients or glow */}
+        {/* Solid inner iris accent */}
         <circle
           cx="12"
           cy="12"
           r="3.2"
-          fill="#7c3aed"
+          fill="#27272a"
         />
 
         {/* Center pupil dot */}

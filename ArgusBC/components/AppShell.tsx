@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { useWorkspace } from "@/lib/workspace-context";
+import { useAgents } from "@/lib/agent-context";
 import { ArgusLogo } from "@/components/ArgusLogo";
 import {
   Home,
@@ -20,6 +22,9 @@ import {
   Eye,
   Sliders,
   Terminal,
+  Bot,
+  Plus,
+  PlusCircle,
 } from "lucide-react";
 
 interface AppShellProps {
@@ -40,12 +45,14 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const { user, authConfigured, isDemoSession, signOut } = useAuth();
+  const { workspaces, selectedWorkspace, selectWorkspace } = useWorkspace();
+  const { agents } = useAgents();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
 
-  // Main menu navigation items matching UI_concept.png
-  const MENU_ITEMS = [
+  // Data Protection navigation items (replacing previous Menu)
+  const DATA_PROTECTION_ITEMS = [
     {
       href: "/dashboard",
       label: "Overview",
@@ -72,6 +79,26 @@ export function AppShell({
       label: "Files",
       icon: FileText,
       badge: null,
+      exact: false,
+    },
+  ];
+
+  // AI Agents navigation items (parallel section directly below Files)
+  const AI_AGENT_ITEMS = [
+    {
+      href: "/agents",
+      label: "Agent Studio",
+      icon: Bot,
+      badge: `${agents.length}`,
+      badgeClass: "bg-zinc-100 text-zinc-900 font-semibold",
+      exact: true,
+    },
+    {
+      href: "/agents/new",
+      label: "Create Agent",
+      icon: PlusCircle,
+      badge: "New",
+      badgeClass: "bg-zinc-100 text-zinc-800 font-medium",
       exact: false,
     },
   ];
@@ -127,7 +154,7 @@ export function AppShell({
     .toUpperCase();
 
   return (
-    <div className="min-h-screen bg-[#f4f5f7] text-gray-900 flex font-sans selection:bg-[#f5f3ff] selection:text-[#7c3aed]">
+    <div className="min-h-screen bg-[#f4f5f7] text-gray-900 flex font-sans selection:bg-zinc-200 selection:text-zinc-900">
       {/* 1. Desktop Fixed White Left Sidebar (approx 250px) */}
       <aside className="hidden lg:flex flex-col w-[252px] flex-shrink-0 bg-white border-r border-gray-200/80 h-screen sticky top-0 z-30 select-none">
         {/* Brand Header */}
@@ -136,46 +163,66 @@ export function AppShell({
             onClick={() => setTeamDropdownOpen(!teamDropdownOpen)}
             className="flex items-center justify-between cursor-pointer group p-1 -m-1 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
               <ArgusLogo size="md" />
-              <div>
+              <div className="min-w-0">
                 <div className="font-bold text-gray-900 text-sm tracking-tight leading-tight">
                   ARGUS
                 </div>
-                <div className="text-xs text-gray-500 font-normal leading-tight flex items-center gap-1">
-                  <span>Team</span>
+                <div className="text-xs text-gray-500 font-normal leading-tight flex items-center gap-1 min-w-0">
+                  <span
+                    className="truncate max-w-[130px] font-medium text-gray-700"
+                    title={selectedWorkspace.name}
+                  >
+                    {selectedWorkspace.name}
+                  </span>
                 </div>
               </div>
             </div>
-            <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+            <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0" />
           </div>
 
-          {/* Team Dropdown Menu */}
+          {/* Workspace Dropdown Menu */}
           {teamDropdownOpen && (
             <div className="absolute top-16 left-3 right-3 bg-white border border-gray-200 rounded-lg shadow-elevated p-2 z-50 text-xs">
               <div className="px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-gray-400">
                 Switch Workspace
               </div>
-              <button
-                type="button"
-                onClick={() => setTeamDropdownOpen(false)}
-                className="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 flex items-center justify-between text-gray-800 font-medium"
-              >
-                <span>Argus Core Operations</span>
-                <span className="text-[10px] text-emerald-600 font-mono">ACTIVE</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTeamDropdownOpen(false)}
-                className="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-gray-600"
-              >
-                <span>RedactCore Daemon Local</span>
-              </button>
+              <div className="space-y-0.5">
+                {workspaces.map((ws) => {
+                  const isSelected = ws.id === selectedWorkspace.id;
+                  return (
+                    <button
+                      key={ws.id}
+                      type="button"
+                      onClick={() => {
+                        selectWorkspace(ws.id);
+                        setTeamDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-2 py-1.5 rounded flex items-center justify-between transition-colors ${
+                        isSelected
+                          ? "bg-zinc-100 text-zinc-900 font-semibold"
+                          : "text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      <div className="truncate mr-2">
+                        <div className="truncate">{ws.name}</div>
+                        <div className="text-[10px] text-gray-400 truncate">{ws.type}</div>
+                      </div>
+                      {isSelected && (
+                        <span className="text-[10px] text-emerald-600 font-mono font-semibold flex-shrink-0">
+                          ACTIVE
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
               <div className="border-t border-gray-100 my-1" />
               <Link
                 href="/views/new"
                 onClick={() => setTeamDropdownOpen(false)}
-                className="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-argus-brand font-medium flex items-center gap-1"
+                className="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-zinc-900 font-medium flex items-center gap-1"
               >
                 <Eye className="w-3.5 h-3.5" />
                 <span>New Verified View</span>
@@ -193,7 +240,7 @@ export function AppShell({
               placeholder="Search..."
               value={searchQuery}
               onChange={(e) => onSearchChange?.(e.target.value)}
-              className="w-full pl-8 pr-7 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#7c3aed] focus:ring-1 focus:ring-[#7c3aed] transition-all"
+              className="w-full pl-8 pr-7 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-all"
             />
             <div className="absolute right-2 text-[10px] font-mono text-gray-400 bg-gray-50 border border-gray-200 px-1.5 py-0.2 rounded select-none pointer-events-none">
               /
@@ -203,13 +250,13 @@ export function AppShell({
 
         {/* Scrollable Nav Sections */}
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-5">
-          {/* Section 1: Menu */}
+          {/* Section 1: Data Protection */}
           <div>
-            <div className="px-3 pb-1.5 text-[11px] font-medium text-gray-400 tracking-wider">
-              Menu
+            <div className="px-3 pb-1.5 text-[11px] font-medium text-gray-400 tracking-wider uppercase">
+              Data Protection
             </div>
             <nav className="space-y-0.5">
-              {MENU_ITEMS.map((item) => {
+              {DATA_PROTECTION_ITEMS.map((item) => {
                 const isActive = item.exact
                   ? pathname === item.href
                   : pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -221,14 +268,14 @@ export function AppShell({
                     href={item.href}
                     className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                       isActive
-                        ? "bg-[#f5f3ff] text-[#7c3aed]"
+                        ? "bg-zinc-100 text-zinc-900 font-semibold"
                         : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
                       <Icon
                         className={`w-4 h-4 ${
-                          isActive ? "text-[#7c3aed]" : "text-gray-400"
+                          isActive ? "text-zinc-900" : "text-gray-400"
                         }`}
                       />
                       <span>{item.label}</span>
@@ -245,17 +292,72 @@ export function AppShell({
             </nav>
           </div>
 
-          {/* Section 2: Roles */}
+          {/* Section 2: AI Agents (Parallel section directly below Files) */}
           <div>
             <div className="flex items-center justify-between px-3 pb-1.5">
-              <span className="text-[11px] font-medium text-gray-400 tracking-wider">
+              <span className="text-[11px] font-medium text-gray-400 tracking-wider uppercase">
+                AI Agents
+              </span>
+              <Link
+                href="/agents/new"
+                title="Create AI Agent"
+                className="p-0.5 rounded text-gray-400 hover:text-zinc-900 hover:bg-gray-100 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+            <nav className="space-y-0.5">
+              {AI_AGENT_ITEMS.map((item) => {
+                const isActive = item.exact
+                  ? pathname === item.href
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const Icon = item.icon;
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                      isActive
+                        ? "bg-zinc-100 text-zinc-900 font-semibold"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Icon
+                        className={`w-4 h-4 ${
+                          isActive ? "text-zinc-900" : "text-gray-400"
+                        }`}
+                      />
+                      <span>{item.label}</span>
+                    </div>
+
+                    {item.badge && (
+                      <span
+                        className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${
+                          item.badgeClass || "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* Section 3: Roles */}
+          <div>
+            <div className="flex items-center justify-between px-3 pb-1.5">
+              <span className="text-[11px] font-medium text-gray-400 tracking-wider uppercase">
                 Roles
               </span>
               {activeRoleFilter && (
                 <button
                   type="button"
                   onClick={() => onRoleFilterChange?.(null)}
-                  className="text-[10px] text-argus-brand hover:underline"
+                  className="text-[10px] text-zinc-600 hover:underline"
                 >
                   Clear filter
                 </button>
@@ -272,7 +374,7 @@ export function AppShell({
                     onClick={() => handleRoleClick(role.id)}
                     className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors text-left ${
                       isSelected
-                        ? "bg-[#f5f3ff] text-[#7c3aed] font-semibold"
+                        ? "bg-zinc-100 text-zinc-900 font-semibold"
                         : "text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-normal"
                     }`}
                   >
@@ -299,7 +401,7 @@ export function AppShell({
           >
             <div className="flex items-center gap-2.5 min-w-0">
               {/* Circular Avatar */}
-              <div className="w-8 h-8 rounded-full bg-argus-brand text-white flex items-center justify-center font-semibold text-xs flex-shrink-0 shadow-xs">
+              <div className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold text-xs flex-shrink-0 shadow-xs">
                 {userInitials}
               </div>
 
@@ -397,12 +499,21 @@ export function AppShell({
                 />
               </div>
 
+              {/* Mobile Workspace Badge */}
+              <div className="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-xs">
+                <span className="text-gray-500 font-mono text-[10px] uppercase">Workspace</span>
+                <span className="font-semibold text-gray-800 text-[11px] truncate max-w-[140px]">
+                  {selectedWorkspace.name}
+                </span>
+              </div>
+
+              {/* Mobile Section 1: Data Protection */}
               <div>
-                <div className="px-2 pb-1 text-[11px] font-medium text-gray-400 tracking-wider">
-                  Menu
+                <div className="px-2 pb-1 text-[11px] font-medium text-gray-400 tracking-wider uppercase">
+                  Data Protection
                 </div>
                 <nav className="space-y-1">
-                  {MENU_ITEMS.map((item) => {
+                  {DATA_PROTECTION_ITEMS.map((item) => {
                     const isActive = pathname === item.href;
                     const Icon = item.icon;
                     return (
@@ -412,7 +523,7 @@ export function AppShell({
                         onClick={() => setMobileMenuOpen(false)}
                         className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium ${
                           isActive
-                            ? "bg-[#f5f3ff] text-[#7c3aed]"
+                            ? "bg-zinc-100 text-zinc-900 font-semibold"
                             : "text-gray-700 hover:bg-gray-50"
                         }`}
                       >
@@ -431,8 +542,57 @@ export function AppShell({
                 </nav>
               </div>
 
+              {/* Mobile Section 2: AI Agents */}
               <div>
-                <div className="px-2 pb-1 text-[11px] font-medium text-gray-400 tracking-wider">
+                <div className="flex items-center justify-between px-2 pb-1">
+                  <span className="text-[11px] font-medium text-gray-400 tracking-wider uppercase">
+                    AI Agents
+                  </span>
+                  <Link
+                    href="/agents/new"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="text-[10px] text-zinc-900 font-medium"
+                  >
+                    + New
+                  </Link>
+                </div>
+                <nav className="space-y-1">
+                  {AI_AGENT_ITEMS.map((item) => {
+                    const isActive = pathname === item.href;
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium ${
+                          isActive
+                            ? "bg-zinc-100 text-zinc-900 font-semibold"
+                            : "text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Icon className="w-4 h-4" />
+                          <span>{item.label}</span>
+                        </div>
+                        {item.badge && (
+                          <span
+                            className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${
+                              item.badgeClass || "bg-gray-100 text-gray-600"
+                            }`}
+                          >
+                            {item.badge}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </div>
+
+              {/* Mobile Section 3: Roles */}
+              <div>
+                <div className="px-2 pb-1 text-[11px] font-medium text-gray-400 tracking-wider uppercase">
                   Roles
                 </div>
                 <div className="space-y-1">

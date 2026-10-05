@@ -12,7 +12,7 @@ Rather than an editorial paper security ledger, the interface embodies a **polis
 - **Light Cool Gray Canvas**: Crisp, breathable background (`#f4f5f7`) that grounds content without visual fatigue.
 - **Pure White Elevated Surfaces**: Primary cards, navigation sidebar, and inspection panels use `#ffffff` with subtle borders (`#e5e7eb`) and restrained soft shadows (`shadow-xs` / `shadow-card`).
 - **Disciplined Functional Palette**:
-  - **Brand Accent (Purple / Lilac)**: `#7c3aed` (hover `#6d28d9`, surface `#f5f3ff`, border `#ddd6fe`), reserved for active navigation links, brand identity, and selected states.
+  - **Brand Accent (Zinc / Neutral Slate)**: `#18181b` (hover `#27272a`, surface `#f4f4f5`, border `#e4e4e7`), reserved for active navigation links, brand identity, and selected states.
   - **Positive Action Accent (Green / Teal)**: `#10b981` (hover `#059669`, surface `#ecfdf5`), used for primary add actions (the circular `+` button) and verified safety states.
   - **Warning & Blocked Signals (Red / Coral)**: `#ef4444` (hover `#dc2626`, surface `#fef2f2`), reserved strictly for blocked worksheets, fail-closed boundaries, and critical errors.
   - **Review Signal (Amber / Ochre)**: `#f59e0b` (surface `#fffbeb`), used for review-required findings.
@@ -28,21 +28,25 @@ The desktop navigation sidebar is a fixed, non-scrolling or independent-scrollin
 - **Width**: `252px` (`w-[252px]`).
 - **Surface**: Pure white (`#ffffff`) with a hairline right boundary (`border-r border-gray-200/80`).
 - **Brand Header**:
-  - Argus Eye/Iris Mark: Black squircle (`w-9 h-9 rounded-lg bg-black`) containing an orbital contour, purple iris circle (`#7c3aed`), and cyan reflection dot.
-  - Wordmark: `ARGUS` in bold uppercase typography, accompanied by the `Team` workspace selector with chevron affordance.
+  - Argus Eye/Iris Mark: Black squircle (`w-9 h-9 rounded-lg bg-black`) containing an orbital contour, zinc iris circle (`#27272a`), and cyan reflection dot.
+  - Wordmark: `ARGUS` in bold uppercase typography, accompanied by the dynamic active workspace selector (`selectedWorkspace.name`) with chevron affordance.
 - **Search Bar**:
   - Compact rounded search input (`rounded-lg border border-gray-200 bg-white px-2.5 py-1.5`) with magnifying glass icon and keyboard shortcut badge (`/`).
   - Interactive filtering: filters the timeline feed in real time.
 - **Navigation Sections**:
-  - **Menu Section**: Label `Menu` in muted uppercase text.
-    - `Overview` (`/dashboard`): Active state features purple text (`#7c3aed`), purple icon stroke, and soft purple tinted background (`#f5f3ff`).
+  - **Data Protection Section**: Label `DATA PROTECTION` in muted uppercase text.
+    - `Overview` (`/dashboard`): Active state features zinc text (`#18181b`), zinc icon stroke, and soft zinc tinted background (`#f4f4f5`).
     - `Users & Agents` (`/sandbox`): Users icon with circular count badge (`13`).
     - `Policies` (`/policies`): ShieldCheck icon for RedactCore rule matrices.
     - `Files` (`/documents`): FileText icon for immutable source ledger.
-  - **Roles Section**: Label `Roles` in muted uppercase text with status dots and circular badges:
+  - **AI Agents Section**: Parallel section directly below `Files` for custom agent creation and management.
+    - `Agent Studio` (`/agents`): Bot icon with custom agent count badge.
+    - `Create Agent` (`/agents/new`): PlusCircle icon with `New` badge.
+  - **Roles Section**: Label `ROLES` in muted uppercase text with status dots and circular badges:
     - `Developer`: Emerald status dot (`#10b981`) &middot; Badge `2`
     - `Designer`: Amber status dot (`#f59e0b`) &middot; Badge `9`
     - `Partner`: Pink status dot (`#ec4899`) &middot; Badge `3`
+    - `Marketing`: Blue status dot (`#3b82f6`) &middot; Badge `1`
     - `Marketing`: Blue status dot (`#3b82f6`) &middot; Badge `1`
     - Role filtering: Clicking any role filters the timeline cards to agents matching that domain.
 - **Sidebar Footer**:
@@ -103,9 +107,9 @@ When the `Guarded View` tab is active, the card displays an authentic privacy-pr
 | `argus-ink` | `#111827` | Primary text and headlines |
 | `argus-ink-secondary` | `#4b5563` | Subtitles and explanatory copy |
 | `argus-ink-muted` | `#9ca3af` | Metadata, hashes, timestamps |
-| `argus-brand` | `#7c3aed` | Deliberate purple brand accent |
-| `argus-brand-surface` | `#f5f3ff` | Active nav and selected pill background |
-| `argus-brand-border` | `#ddd6fe` | Active boundary border |
+| `argus-brand` | `#18181b` | Refined zinc brand accent |
+| `argus-brand-surface` | `#f4f4f5` | Active nav and selected pill background (zinc-100) |
+| `argus-brand-border` | `#e4e4e7` | Active boundary border (zinc-200) |
 | `argus-action` | `#10b981` | Green/teal add buttons & positive actions |
 | `argus-blocked` | `#ef4444` | Red/coral blocked items & fail-closed alerts |
 | `argus-review` | `#f59e0b` | Amber review-required badges |

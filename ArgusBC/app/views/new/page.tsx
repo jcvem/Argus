@@ -69,7 +69,7 @@ export default function NewViewPage() {
                       onClick={() => setSelectedDocSha(doc.source_sha256)}
                       className={`w-full text-left p-3 rounded-lg border transition-all text-xs ${
                         isSelected
-                          ? "bg-white border-[#7c3aed] ring-2 ring-[#7c3aed]/10 shadow-xs"
+                          ? "bg-white border-zinc-900 ring-2 ring-zinc-900/10 shadow-xs"
                           : "bg-gray-50/60 border-gray-200 hover:border-gray-300"
                       }`}
                     >
@@ -105,7 +105,7 @@ export default function NewViewPage() {
                       onClick={() => setSelectedPolicyId(p.policy_id)}
                       className={`w-full text-left p-3 rounded-lg border transition-all text-xs ${
                         isSelected
-                          ? "bg-white border-[#7c3aed] ring-2 ring-[#7c3aed]/10 shadow-xs"
+                          ? "bg-white border-zinc-900 ring-2 ring-zinc-900/10 shadow-xs"
                           : "bg-gray-50/60 border-gray-200 hover:border-gray-300"
                       }`}
                     >
@@ -142,7 +142,7 @@ export default function NewViewPage() {
                       onClick={() => setSelectedSubjectId(s.subject_id)}
                       className={`w-full text-left p-3 rounded-lg border transition-all text-xs ${
                         isSelected
-                          ? "bg-white border-[#7c3aed] ring-2 ring-[#7c3aed]/10 shadow-xs"
+                          ? "bg-white border-zinc-900 ring-2 ring-zinc-900/10 shadow-xs"
                           : "bg-gray-50/60 border-gray-200 hover:border-gray-300"
                       }`}
                     >

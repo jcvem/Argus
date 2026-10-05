@@ -40,7 +40,7 @@ export default function SandboxPage() {
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
                   Users &amp; Agents Sandbox
                 </h1>
-                <span className="text-[11px] font-medium text-[#7c3aed] bg-[#f5f3ff] border border-[#ddd6fe] px-2.5 py-0.5 rounded-full">
+                <span className="text-[11px] font-medium text-zinc-800 bg-zinc-100 border border-zinc-200 px-2.5 py-0.5 rounded-full">
                   13 Active Personas
                 </span>
               </div>
@@ -78,7 +78,7 @@ export default function SandboxPage() {
               <select
                 value={selectedSubjectId}
                 onChange={(e) => setSelectedSubjectId(e.target.value)}
-                className="w-full p-2 bg-gray-50 border border-gray-200 text-xs text-gray-800 rounded-lg focus:outline-none focus:border-[#7c3aed] focus:ring-1 focus:ring-[#7c3aed]"
+                className="w-full p-2 bg-gray-50 border border-gray-200 text-xs text-gray-800 rounded-lg focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
               >
                 {DEMO_SUBJECTS.map((s) => (
                   <option key={s.subject_id} value={s.subject_id}>
@@ -96,7 +96,7 @@ export default function SandboxPage() {
               <select
                 value={selectedPolicyId}
                 onChange={(e) => setSelectedPolicyId(e.target.value)}
-                className="w-full p-2 bg-gray-50 border border-gray-200 text-xs text-gray-800 rounded-lg focus:outline-none focus:border-[#7c3aed] focus:ring-1 focus:ring-[#7c3aed]"
+                className="w-full p-2 bg-gray-50 border border-gray-200 text-xs text-gray-800 rounded-lg focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
               >
                 {LOCAL_POLICIES.map((p) => (
                   <option key={p.policy_id} value={p.policy_id}>
@@ -114,7 +114,7 @@ export default function SandboxPage() {
               <select
                 value={selectedDocSha}
                 onChange={(e) => setSelectedDocSha(e.target.value)}
-                className="w-full p-2 bg-gray-50 border border-gray-200 text-xs text-gray-800 rounded-lg focus:outline-none focus:border-[#7c3aed] focus:ring-1 focus:ring-[#7c3aed]"
+                className="w-full p-2 bg-gray-50 border border-gray-200 text-xs text-gray-800 rounded-lg focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
               >
                 {DEMO_DOCUMENTS.map((d) => (
                   <option key={d.source_sha256} value={d.source_sha256}>

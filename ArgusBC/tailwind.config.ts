@@ -23,19 +23,19 @@ const config: Config = {
             light: "#6b7280",
           },
           brand: {
-            DEFAULT: "#7c3aed",
-            hover: "#6d28d9",
-            surface: "#f5f3ff",
-            border: "#ddd6fe",
+            DEFAULT: "#18181b", // zinc-900
+            hover: "#27272a", // zinc-800
+            surface: "#f4f4f5", // zinc-100
+            border: "#e4e4e7", // zinc-200
           },
           // Keep accent mapped to brand for backward compatibility
           accent: {
-            DEFAULT: "#7c3aed",
-            hover: "#6d28d9",
-            bright: "#8b5cf6",
-            dim: "#6d28d9",
-            surface: "#f5f3ff",
-            darkSurface: "#1e1b4b",
+            DEFAULT: "#18181b",
+            hover: "#27272a",
+            bright: "#3f3f46",
+            dim: "#71717a",
+            surface: "#f4f4f5",
+            darkSurface: "#18181b",
           },
           action: {
             DEFAULT: "#10b981",

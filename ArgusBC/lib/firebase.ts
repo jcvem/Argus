@@ -9,6 +9,7 @@ import {
   signOut as firebaseSignOut,
   User,
 } from "firebase/auth";
+import { getFirestore, Firestore } from "firebase/firestore";
 
 export interface FirebaseClientConfig {
   apiKey: string;
@@ -58,7 +59,28 @@ export function getFirebaseConfig(): FirebaseClientConfig | null {
 
 let appInstance: FirebaseApp | null = null;
 let authInstance: Auth | null = null;
+let firestoreInstance: Firestore | null = null;
 let googleProviderInstance: GoogleAuthProvider | null = null;
+
+export function getFirebaseFirestore(): Firestore | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  if (!firestoreInstance && isFirebaseConfigured()) {
+    const config = getFirebaseConfig();
+    if (config) {
+      try {
+        appInstance = getApps().length > 0 ? getApp() : initializeApp(config);
+        firestoreInstance = getFirestore(appInstance);
+      } catch (err) {
+        console.warn("[Argus Datastore] Firestore initialization deferred:", err);
+      }
+    }
+  }
+
+  return firestoreInstance;
+}
 
 export function getFirebaseAuth(): Auth | null {
   if (typeof window === "undefined") {
