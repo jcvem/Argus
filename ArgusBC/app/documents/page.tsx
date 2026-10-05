@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { ProtectedRoute } from "@/lib/auth-context";
 import { AppShell } from "@/components/AppShell";
@@ -10,10 +10,18 @@ import {
   GOOGLE_DRIVE_CONSENTED_ITEMS,
   getWorkspaceDatastoreBucket,
   ROLE_BUCKET_VIEWS,
+  GoogleDriveConsentedArea,
   GoogleDriveConsentedItem,
   WorkspaceImmutableFile,
   RoleGuardedFile,
 } from "@/lib/datastore";
+import {
+  DriveAuthSession,
+  getStoredDriveSession,
+  fetchLiveDriveFiles,
+  mapRealDriveFileToConsentedItem,
+} from "@/lib/google-drive";
+import { GoogleDriveConsentModal } from "@/components/GoogleDriveConsentModal";
 import { formatDigest } from "@/lib/api";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { FindingsModal } from "@/components/FindingsModal";
@@ -22,10 +30,12 @@ import {
   HardDrive,
   Cloud,
   Lock,
+  Folder,
   FolderCheck,
   CheckCircle2,
   ShieldCheck,
   FileText,
+  FileSpreadsheet,
   Copy,
   RefreshCw,
   Search,
@@ -34,23 +44,43 @@ import {
   ArrowRight,
   Database,
   Check,
-  ShieldAlert,
-  SlidersHorizontal,
+  List,
+  LayoutGrid,
+  MoreVertical,
+  ChevronRight,
   X,
-  Sparkles,
+  SlidersHorizontal,
 } from "lucide-react";
 
 export default function DocumentsPage() {
   const { selectedWorkspace } = useWorkspace();
+
+  // View modes: list or grid (mimicking Google Drive UI)
+  const [driveViewMode, setDriveViewMode] = useState<"list" | "grid">("list");
+  const [bucketViewMode, setBucketViewMode] = useState<"list" | "grid">("list");
+
+  // Selection states
+  const [selectedDriveItemId, setSelectedDriveItemId] = useState<string | null>(null);
+  const [selectedBucketFileId, setSelectedBucketFileId] = useState<string | null>(null);
 
   // Active role tab for bottom section
   const [activeRoleTab, setActiveRoleTab] = useState<
     "Developer" | "Designer" | "Partner" | "Marketing"
   >("Developer");
 
-  // Selection states for inspection modals
+  // Modals
   const [selectedDoc, setSelectedDoc] = useState<DemoDocumentRecord | null>(null);
   const [selectedGuardedDiff, setSelectedGuardedDiff] = useState<RoleGuardedFile | null>(null);
+  const [isConsentModalOpen, setIsConsentModalOpen] = useState<boolean>(false);
+
+  // Live Google Drive OAuth Session & State
+  const [driveSession, setDriveSession] = useState<DriveAuthSession | null>(null);
+  const [consentedItems, setConsentedItems] = useState<GoogleDriveConsentedItem[]>(
+    GOOGLE_DRIVE_CONSENTED_ITEMS
+  );
+  const [consentedAreas, setConsentedAreas] = useState<GoogleDriveConsentedArea[]>(
+    GOOGLE_DRIVE_CONSENTED_AREAS
+  );
 
   // Search & Filter state for Google Drive
   const [driveFolderFilter, setDriveFolderFilter] = useState<string>("all");
@@ -59,10 +89,18 @@ export default function DocumentsPage() {
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
   // Search state for Cloud Store Bucket
+  const [bucketFolderFilter, setBucketFolderFilter] = useState<string>("all");
   const [bucketSearch, setBucketSearch] = useState<string>("");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Read the workspace's Cloud Store Bucket from Datastore
+  useEffect(() => {
+    const stored = getStoredDriveSession();
+    if (stored) {
+      setDriveSession(stored);
+    }
+  }, []);
+
+  // Read the workspace's Cloud Store Bucket from Firebase Datastore
   const workspaceBucket = useMemo(() => {
     return getWorkspaceDatastoreBucket(selectedWorkspace.id);
   }, [selectedWorkspace.id]);
@@ -72,7 +110,7 @@ export default function DocumentsPage() {
 
   // Filtered Drive items
   const filteredDriveItems = useMemo(() => {
-    return GOOGLE_DRIVE_CONSENTED_ITEMS.filter((item) => {
+    return consentedItems.filter((item) => {
       const matchesFolder =
         driveFolderFilter === "all" ||
         item.folderPath.toLowerCase().includes(driveFolderFilter.toLowerCase());
@@ -82,20 +120,30 @@ export default function DocumentsPage() {
         item.folderPath.toLowerCase().includes(driveSearch.toLowerCase());
       return matchesFolder && matchesQuery;
     });
-  }, [driveFolderFilter, driveSearch]);
+  }, [consentedItems, driveFolderFilter, driveSearch]);
 
   // Filtered Workspace Bucket items
   const filteredBucketFiles = useMemo(() => {
     return workspaceBucket.files.filter((file) => {
-      if (!bucketSearch.trim()) return true;
-      const q = bucketSearch.toLowerCase();
-      return (
-        file.filename.toLowerCase().includes(q) ||
-        file.path.toLowerCase().includes(q) ||
-        file.sourceSha256.toLowerCase().includes(q)
-      );
+      const matchesFolder =
+        bucketFolderFilter === "all" ||
+        file.path.toLowerCase().includes(bucketFolderFilter.toLowerCase());
+      const matchesQuery =
+        !bucketSearch.trim() ||
+        file.filename.toLowerCase().includes(bucketSearch.toLowerCase()) ||
+        file.path.toLowerCase().includes(bucketSearch.toLowerCase()) ||
+        file.sourceSha256.toLowerCase().includes(bucketSearch.toLowerCase());
+      return matchesFolder && matchesQuery;
     });
-  }, [workspaceBucket, bucketSearch]);
+  }, [workspaceBucket, bucketFolderFilter, bucketSearch]);
+
+  const selectedDriveItem = useMemo(() => {
+    return consentedItems.find((i) => i.id === selectedDriveItemId) || null;
+  }, [consentedItems, selectedDriveItemId]);
+
+  const selectedBucketFile = useMemo(() => {
+    return workspaceBucket.files.find((f) => f.id === selectedBucketFileId) || null;
+  }, [workspaceBucket, selectedBucketFileId]);
 
   const handleCopy = (text: string, id: string) => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -105,14 +153,76 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleSyncDrive = () => {
+  const handleSyncDrive = async () => {
     setIsSyncingDrive(true);
     setSyncFeedback(null);
+
+    // If live Google Drive session exists, fetch live files from Google Drive API
+    if (driveSession?.accessToken) {
+      try {
+        const liveFiles = await fetchLiveDriveFiles(driveSession.accessToken);
+        const folderMap = new Map<string, string>();
+        consentedAreas.forEach((a) => folderMap.set(a.id.replace("gdrive-", ""), a.name));
+        const updated = liveFiles.map((f) => mapRealDriveFileToConsentedItem(f, folderMap));
+        if (updated.length > 0) {
+          setConsentedItems(updated);
+        }
+        setSyncFeedback(
+          `Live Drive sync successful. Ingested ${liveFiles.length} files from ${
+            driveSession.userEmail || "Google Drive"
+          }.`
+        );
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Sync error";
+        setSyncFeedback(`Google Drive sync notice: ${msg}`);
+      } finally {
+        setIsSyncingDrive(false);
+        setTimeout(() => setSyncFeedback(null), 5000);
+      }
+      return;
+    }
+
+    // Default simulation fallback
     setTimeout(() => {
       setIsSyncingDrive(false);
-      setSyncFeedback("Sync complete. 5 consented items verified with WORM bucket.");
-      setTimeout(() => setSyncFeedback(null), 4000);
+      setSyncFeedback(
+        "Sync complete. 5 consented items verified with WORM bucket. Click 'Manage Consented Areas' to connect your live Google account."
+      );
+      setTimeout(() => setSyncFeedback(null), 5000);
     }, 1200);
+  };
+
+  // Helper for Google Drive-style file type icons
+  const renderDriveFileIcon = (fileType: string) => {
+    switch (fileType.toLowerCase()) {
+      case "pdf":
+        return (
+          <div className="w-8 h-8 rounded-lg bg-red-50 border border-red-200/80 text-red-600 flex items-center justify-center flex-shrink-0">
+            <FileText className="w-4 h-4" />
+          </div>
+        );
+      case "docx":
+      case "doc":
+        return (
+          <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200/80 text-blue-600 flex items-center justify-center flex-shrink-0">
+            <FileText className="w-4 h-4" />
+          </div>
+        );
+      case "csv":
+      case "xlsx":
+      case "sheet":
+        return (
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200/80 text-emerald-600 flex items-center justify-center flex-shrink-0">
+            <FileSpreadsheet className="w-4 h-4" />
+          </div>
+        );
+      default:
+        return (
+          <div className="w-8 h-8 rounded-lg bg-zinc-100 border border-zinc-200 text-zinc-700 flex items-center justify-center flex-shrink-0">
+            <FileText className="w-4 h-4" />
+          </div>
+        );
+    }
   };
 
   // Canonical roles matching AppShell
@@ -195,7 +305,7 @@ export default function DocumentsPage() {
               <button
                 type="button"
                 onClick={() => setSyncFeedback(null)}
-                className="text-zinc-400 hover:text-white"
+                className="text-zinc-400 hover:text-white cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -204,309 +314,660 @@ export default function DocumentsPage() {
 
           {/* TOP SECTION: Split into Two Columns (Top Left: Google Drive, Top Right: Cloud Store Bucket) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-            {/* TOP LEFT: Google Drive (User Consented Areas) */}
-            <div className="bg-white border border-gray-200/80 rounded-2xl shadow-xs overflow-hidden flex flex-col h-[560px]">
-              {/* Card Header */}
-              <div className="p-4 sm:p-5 border-b border-gray-100 bg-gray-50/60">
-                <div className="flex items-start justify-between gap-3">
+            {/* ========================================================================= */}
+            {/* TOP LEFT: Google Drive (Mimicking Google Drive File Listing UI)           */}
+            {/* ========================================================================= */}
+            <div className="bg-white border border-gray-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col h-[620px]">
+              {/* Drive Top Bar with Search & View Controls */}
+              <div className="p-4 border-b border-gray-200/80 bg-gray-50/50 space-y-3">
+                <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-900 flex items-center justify-center flex-shrink-0">
-                      <HardDrive className="w-5 h-5 text-zinc-800" />
+                    <div className="w-8 h-8 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center flex-shrink-0">
+                      <HardDrive className="w-4 h-4 text-zinc-800" />
                     </div>
                     <div>
-                      <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-                        <span>Google Drive: Consented Areas</span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
-                          OAuth Active
-                        </span>
+                      <h2 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                        <span>Google Drive</span>
+                        {driveSession ? (
+                          <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                            <span>OAuth Granted</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-800 border border-zinc-200">
+                            Consented Areas
+                          </span>
+                        )}
                       </h2>
-                      <p className="text-[11px] text-gray-500 mt-0.5">
-                        User-authorized corporate directories under scope <code className="text-zinc-700 font-semibold font-mono">drive.readonly.selected</code>
-                      </p>
+                      <div className="text-[10px] text-gray-500 truncate max-w-[220px]">
+                        {driveSession?.userEmail || "compliance-officer@argus.enterprise"}
+                      </div>
                     </div>
                   </div>
 
-                  <span className="text-[11px] font-mono text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded-md hidden sm:inline-block">
-                    4 Folders Consented
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {/* Permission Request Trigger */}
+                    <button
+                      type="button"
+                      onClick={() => setIsConsentModalOpen(true)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-zinc-900 bg-white hover:bg-zinc-100 border border-zinc-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <FolderCheck className="w-3.5 h-3.5 text-zinc-700" />
+                      <span>{driveSession ? "Manage Consented Areas" : "Grant Drive Permission"}</span>
+                    </button>
+
+                    {/* List / Grid View Switcher (Google Drive style) */}
+                    <div className="flex items-center border border-gray-200 bg-white rounded-lg p-0.5 shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setDriveViewMode("list")}
+                        className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                          driveViewMode === "list"
+                            ? "bg-zinc-100 text-zinc-900 font-semibold"
+                            : "text-gray-400 hover:text-gray-700 hover:bg-gray-50"
+                        }`}
+                        title="List layout"
+                      >
+                        <List className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDriveViewMode("grid")}
+                        className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                          driveViewMode === "grid"
+                            ? "bg-zinc-100 text-zinc-900 font-semibold"
+                            : "text-gray-400 hover:text-gray-700 hover:bg-gray-50"
+                        }`}
+                        title="Grid layout"
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Filter and Search Bar */}
-                <div className="mt-3.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <div className="relative flex-1">
-                    <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-gray-400" />
+                {/* Google Drive Pill Search Bar */}
+                <div className="relative">
+                  <div className="w-full flex items-center bg-zinc-100/90 hover:bg-zinc-100 border border-zinc-200/80 rounded-full px-3.5 py-1.5 transition-colors focus-within:ring-2 focus-within:ring-zinc-900 focus-within:bg-white">
+                    <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mr-2" />
                     <input
                       type="text"
-                      placeholder="Search consented files..."
+                      placeholder="Search in Google Drive consented files..."
                       value={driveSearch}
                       onChange={(e) => setDriveSearch(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
+                      className="w-full text-xs bg-transparent border-0 text-gray-900 placeholder-gray-400 focus:outline-hidden"
                     />
+                    {driveSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setDriveSearch("")}
+                        className="text-gray-400 hover:text-gray-700 ml-1 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
+                </div>
 
-                  <select
-                    value={driveFolderFilter}
-                    onChange={(e) => setDriveFolderFilter(e.target.value)}
-                    className="px-2.5 py-1.5 text-xs bg-white border border-gray-200 rounded-lg text-gray-700 focus:outline-hidden focus:ring-1 focus:ring-zinc-900 cursor-pointer"
+                {/* Google Drive Breadcrumbs Bar */}
+                <div className="flex items-center gap-1.5 text-[11px] text-gray-600 font-medium">
+                  <span className="text-gray-400">My Drive</span>
+                  <ChevronRight className="w-3 h-3 text-gray-400" />
+                  <span className="text-gray-400">Consented Areas</span>
+                  <ChevronRight className="w-3 h-3 text-gray-400" />
+                  <button
+                    type="button"
+                    onClick={() => setDriveFolderFilter("all")}
+                    className={`font-semibold cursor-pointer hover:underline ${
+                      driveFolderFilter === "all" ? "text-zinc-900" : "text-gray-500"
+                    }`}
                   >
-                    <option value="all">All Folders (4)</option>
-                    <option value="Operations">Operations &amp; Financials</option>
-                    <option value="Engineering">Engineering &amp; Architecture</option>
-                    <option value="Executive">Executive &amp; Governance</option>
-                    <option value="Marketing">Marketing &amp; Campaigns</option>
-                  </select>
+                    {driveFolderFilter === "all" ? "All Consented" : driveFolderFilter}
+                  </button>
                 </div>
               </div>
 
-              {/* Consented Folders Summary Chips */}
-              <div className="px-4 py-2 bg-gray-50/30 border-b border-gray-100 flex items-center gap-2 overflow-x-auto text-[11px]">
-                <span className="text-gray-400 font-medium whitespace-nowrap">Consented Scopes:</span>
-                {GOOGLE_DRIVE_CONSENTED_AREAS.map((area) => (
-                  <button
-                    key={area.id}
-                    type="button"
-                    onClick={() =>
-                      setDriveFolderFilter(
-                        driveFolderFilter === area.name.split(" ")[0]
-                          ? "all"
-                          : area.name.split(" ")[0]
-                      )
-                    }
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] whitespace-nowrap cursor-pointer transition-colors ${
-                      driveFolderFilter.includes(area.name.split(" ")[0])
-                        ? "bg-zinc-900 text-white border-zinc-900"
-                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    <FolderCheck className="w-3 h-3 text-zinc-500" />
-                    <span>{area.name}</span>
-                    <span className="opacity-60 font-mono">({area.fileCount})</span>
-                  </button>
-                ))}
+              {/* Google Drive Folders Row (Horizontal rounded chips) */}
+              <div className="px-4 py-2.5 bg-gray-50/40 border-b border-gray-100 flex items-center gap-2 overflow-x-auto text-xs">
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">
+                  Folders:
+                </span>
+                {consentedAreas.map((folder) => {
+                  const isSelected = driveFolderFilter === folder.name.split(" ")[0];
+                  return (
+                    <button
+                      key={folder.id}
+                      type="button"
+                      onClick={() =>
+                        setDriveFolderFilter(isSelected ? "all" : folder.name.split(" ")[0])
+                      }
+                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs whitespace-nowrap cursor-pointer transition-all ${
+                        isSelected
+                          ? "bg-zinc-900 text-white border-zinc-900 shadow-2xs"
+                          : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      <Folder className={`w-3.5 h-3.5 ${isSelected ? "text-zinc-300" : "text-zinc-500"}`} />
+                      <span className="font-medium">{folder.name}</span>
+                      <span
+                        className={`text-[10px] font-mono px-1 rounded ${
+                          isSelected ? "bg-zinc-800 text-zinc-300" : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {folder.fileCount}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Consented Files Table / List */}
-              <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+              {/* Google Drive File Listing Area */}
+              <div className="flex-1 overflow-y-auto">
                 {filteredDriveItems.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-gray-400">
-                    No files found matching current drive filter.
-                  </div>
-                ) : (
-                  filteredDriveItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="p-3.5 hover:bg-gray-50/80 transition-colors flex items-center justify-between gap-3 text-xs"
+                  <div className="p-8 text-center text-xs text-gray-400 space-y-2">
+                    <div>No files found in selected Google Drive area.</div>
+                    <button
+                      type="button"
+                      onClick={() => setIsConsentModalOpen(true)}
+                      className="px-3 py-1.5 text-xs text-zinc-900 font-medium bg-zinc-100 hover:bg-zinc-200 rounded-lg inline-flex items-center gap-1.5 cursor-pointer"
                     >
-                      <div className="flex items-start gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-zinc-50 border border-zinc-200/80 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <FileText className="w-4 h-4 text-zinc-700" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-semibold text-gray-900 truncate">
-                            {item.name}
-                          </div>
-                          <div className="text-[11px] text-gray-400 flex items-center gap-2 mt-0.5">
-                            <span className="font-mono text-zinc-600">{item.folderPath}</span>
-                            <span>&middot;</span>
-                            <span>{item.size}</span>
-                            <span>&middot;</span>
-                            <span>{item.lastModified}</span>
-                          </div>
-                        </div>
-                      </div>
+                      <FolderCheck className="w-3.5 h-3.5" />
+                      <span>Select Folders to Ingest</span>
+                    </button>
+                  </div>
+                ) : driveViewMode === "list" ? (
+                  /* Google Drive LIST VIEW */
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-200/80 text-[11px] font-medium text-gray-500 bg-gray-50/30 sticky top-0 z-10 backdrop-blur-xs">
+                        <th className="py-2 px-4 font-medium">Name</th>
+                        <th className="py-2 px-3 font-medium hidden sm:table-cell">Owner</th>
+                        <th className="py-2 px-3 font-medium hidden md:table-cell">Last modified</th>
+                        <th className="py-2 px-3 font-medium">File size</th>
+                        <th className="py-2 px-3 font-medium text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filteredDriveItems.map((item) => {
+                        const isSelected = selectedDriveItemId === item.id;
+                        return (
+                          <tr
+                            key={item.id}
+                            onClick={() => setSelectedDriveItemId(item.id)}
+                            className={`transition-colors cursor-pointer group ${
+                              isSelected
+                                ? "bg-zinc-100/90 font-medium text-zinc-900"
+                                : "hover:bg-gray-50/80 text-gray-700"
+                            }`}
+                          >
+                            {/* File Name & Icon */}
+                            <td className="py-2.5 px-4">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                {renderDriveFileIcon(item.fileType)}
+                                <div className="min-w-0">
+                                  <div className="font-medium text-gray-900 truncate">
+                                    {item.name}
+                                  </div>
+                                  <div className="text-[10px] text-gray-400 truncate">
+                                    {item.folderPath}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
 
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span
-                          className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
-                            item.enclaveSyncStatus === "synced"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
+                            {/* Owner */}
+                            <td className="py-2.5 px-3 hidden sm:table-cell">
+                              <div className="flex items-center gap-1.5 text-gray-600 text-[11px]">
+                                <div className="w-5 h-5 rounded-full bg-zinc-200 text-zinc-800 text-[10px] font-bold flex items-center justify-center">
+                                  me
+                                </div>
+                                <span>compliance</span>
+                              </div>
+                            </td>
+
+                            {/* Last modified */}
+                            <td className="py-2.5 px-3 text-[11px] text-gray-500 hidden md:table-cell whitespace-nowrap">
+                              {item.lastModified}
+                            </td>
+
+                            {/* File size */}
+                            <td className="py-2.5 px-3 text-[11px] text-gray-500 whitespace-nowrap font-mono">
+                              {item.size}
+                            </td>
+
+                            {/* Actions / Inspect */}
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {item.demoDocRef && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedDoc(item.demoDocRef || null);
+                                    }}
+                                    className="px-2 py-1 text-[11px] font-medium border border-gray-200 bg-white hover:bg-gray-100 rounded-md text-gray-700 transition-colors cursor-pointer shadow-2xs"
+                                  >
+                                    Inspect
+                                  </button>
+                                )}
+                                <span className="p-1 text-gray-400 hover:text-gray-700 rounded-md">
+                                  <MoreVertical className="w-3.5 h-3.5" />
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  /* Google Drive GRID VIEW (Card View) */
+                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {filteredDriveItems.map((item) => {
+                      const isSelected = selectedDriveItemId === item.id;
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => setSelectedDriveItemId(item.id)}
+                          className={`border rounded-xl p-3.5 transition-all cursor-pointer flex flex-col justify-between h-40 ${
+                            isSelected
+                              ? "bg-zinc-50 border-zinc-900 shadow-2xs ring-1 ring-zinc-900"
+                              : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-xs"
                           }`}
                         >
-                          {item.enclaveSyncStatus === "synced" ? "Synced to Vault" : "Pending Ingest"}
-                        </span>
+                          {/* Card Top: Icon & Filename & Kebab */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              {renderDriveFileIcon(item.fileType)}
+                              <div className="min-w-0">
+                                <div className="text-xs font-semibold text-gray-900 truncate">
+                                  {item.name}
+                                </div>
+                                <div className="text-[10px] text-gray-400 truncate">
+                                  {item.folderPath}
+                                </div>
+                              </div>
+                            </div>
+                            <MoreVertical className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          </div>
 
-                        {item.demoDocRef && (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDoc(item.demoDocRef || null)}
-                            className="px-2.5 py-1 text-[11px] font-medium border border-gray-200 hover:bg-gray-100 rounded-md text-gray-700 transition-colors cursor-pointer"
-                          >
-                            Inspect
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))
+                          {/* Card Middle: Simulated Document Canvas */}
+                          <div className="my-2 p-2 bg-gray-50/80 rounded-lg border border-gray-100 flex flex-col justify-center space-y-1">
+                            <div className="h-1.5 bg-gray-200 rounded-full w-4/5" />
+                            <div className="h-1.5 bg-gray-200 rounded-full w-2/3" />
+                            <div className="h-1.5 bg-gray-200 rounded-full w-1/2" />
+                          </div>
+
+                          {/* Card Bottom: Metadata & Action */}
+                          <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1 border-t border-gray-100">
+                            <span className="font-mono text-[10px]">{item.size}</span>
+                            {item.demoDocRef && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedDoc(item.demoDocRef || null);
+                                }}
+                                className="text-zinc-900 hover:underline font-medium text-[11px] cursor-pointer"
+                              >
+                                Inspect Findings
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
 
-              {/* Card Footer Boundary Notice */}
-              <div className="p-3 bg-gray-50 border-t border-gray-100 text-[11px] text-gray-500 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-zinc-700" />
-                  <span>Enclave boundary enforced: Unconsented folders are cryptographically unindexed.</span>
-                </span>
-                <span className="font-mono text-[10px] text-gray-400">OAuth v2 Scope</span>
+              {/* Drive Contextual Status Bar */}
+              <div className="p-3 bg-gray-50 border-t border-gray-200/80 text-[11px] text-gray-600 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 truncate">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                  <span className="truncate">
+                    {selectedDriveItem
+                      ? `Selected: ${selectedDriveItem.name} (${selectedDriveItem.size})`
+                      : `${filteredDriveItems.length} consented items available for WORM ingest`}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsConsentModalOpen(true)}
+                  className="font-mono text-[10px] text-zinc-900 font-semibold hover:underline flex-shrink-0 cursor-pointer"
+                >
+                  drive.readonly.selected
+                </button>
               </div>
             </div>
 
-            {/* TOP RIGHT: Cloud Store Bucket (Original Immutable Version from Firebase Datastore) */}
-            <div className="bg-white border border-gray-200/80 rounded-2xl shadow-xs overflow-hidden flex flex-col h-[560px]">
-              {/* Card Header */}
-              <div className="p-4 sm:p-5 border-b border-gray-100 bg-gray-50/60">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-zinc-900 text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
-                      <Cloud className="w-5 h-5 text-white" />
+            {/* ========================================================================= */}
+            {/* TOP RIGHT: Cloud Store Bucket (Mimicking Google Drive File Listing UI)     */}
+            {/* ========================================================================= */}
+            <div className="bg-white border border-gray-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col h-[620px]">
+              {/* Bucket Top Bar with Search & View Controls */}
+              <div className="p-4 border-b border-gray-200/80 bg-gray-50/50 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-zinc-900 text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
+                      <Cloud className="w-4 h-4 text-white" />
                     </div>
                     <div>
-                      <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-                        <span>Cloud Store Bucket: Original Immutable Version</span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 text-white font-medium flex items-center gap-1">
+                      <h2 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                        <span>Cloud Store Bucket</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-zinc-900 text-white font-medium flex items-center gap-1">
                           <Lock className="w-2.5 h-2.5" />
-                          <span>WORM Locked</span>
+                          <span>Original Immutable</span>
                         </span>
                       </h2>
-                      <div className="flex items-center gap-2 text-[11px] text-gray-500 mt-0.5">
-                        <span>Read from Firebase Datastore:</span>
-                        <code className="text-zinc-800 font-mono font-semibold bg-gray-100 px-1.5 py-0.5 rounded">
-                          {workspaceBucket.datastoreDocPath}
-                        </code>
+                      <div className="text-[10px] text-gray-500 font-mono truncate">
+                        Datastore: {workspaceBucket.datastoreDocPath}
                       </div>
                     </div>
                   </div>
 
-                  <span className="text-[11px] font-mono text-zinc-700 bg-white border border-gray-200 px-2 py-1 rounded-md hidden sm:inline-block">
-                    {workspaceBucket.totalFiles} Immutable Objects
-                  </span>
-                </div>
-
-                {/* Bucket URI & Properties Panel */}
-                <div className="mt-3.5 p-2.5 bg-white border border-gray-200 rounded-xl space-y-1.5 text-[11px]">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 truncate">
-                      <span className="text-gray-400 font-medium">Bucket URI:</span>
-                      <span className="font-mono font-semibold text-zinc-900 truncate">
-                        {workspaceBucket.bucketUri}
-                      </span>
-                    </div>
-
+                  {/* List / Grid View Switcher */}
+                  <div className="flex items-center border border-gray-200 bg-white rounded-lg p-0.5 shadow-2xs">
                     <button
                       type="button"
-                      onClick={() => handleCopy(workspaceBucket.bucketUri, "bucket_uri")}
-                      className="p-1 text-gray-500 hover:text-zinc-900 hover:bg-gray-100 rounded-md transition-colors cursor-pointer flex-shrink-0"
-                      title="Copy bucket URI"
+                      onClick={() => setBucketViewMode("list")}
+                      className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                        bucketViewMode === "list"
+                          ? "bg-zinc-100 text-zinc-900 font-semibold"
+                          : "text-gray-400 hover:text-gray-700 hover:bg-gray-50"
+                      }`}
+                      title="List layout"
                     >
-                      {copiedKey === "bucket_uri" ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
+                      <List className="w-3.5 h-3.5" />
                     </button>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[10px] text-gray-500 pt-1 border-t border-gray-100">
-                    <span className="truncate">KMS: {workspaceBucket.kmsKeyName}</span>
-                    <span className="font-mono text-emerald-700 font-medium flex-shrink-0">
-                      Datastore Synced ({workspaceBucket.lastSyncedAt})
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setBucketViewMode("grid")}
+                      className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                        bucketViewMode === "grid"
+                          ? "bg-zinc-100 text-zinc-900 font-semibold"
+                          : "text-gray-400 hover:text-gray-700 hover:bg-gray-50"
+                      }`}
+                      title="Grid layout"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
 
-                {/* Bucket Search Bar */}
-                <div className="mt-2.5 relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search immutable object keys or SHA-256..."
-                    value={bucketSearch}
-                    onChange={(e) => setBucketSearch(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
-                  />
+                {/* Google Drive-style Pill Search Bar */}
+                <div className="relative">
+                  <div className="w-full flex items-center bg-zinc-100/90 hover:bg-zinc-100 border border-zinc-200/80 rounded-full px-3.5 py-1.5 transition-colors focus-within:ring-2 focus-within:ring-zinc-900 focus-within:bg-white">
+                    <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mr-2" />
+                    <input
+                      type="text"
+                      placeholder="Search bucket objects, path, or SHA-256..."
+                      value={bucketSearch}
+                      onChange={(e) => setBucketSearch(e.target.value)}
+                      className="w-full text-xs bg-transparent border-0 text-gray-900 placeholder-gray-400 focus:outline-hidden font-mono"
+                    />
+                    {bucketSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setBucketSearch("")}
+                        className="text-gray-400 hover:text-gray-700 ml-1 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Cloud Store Bucket Breadcrumbs Bar */}
+                <div className="flex items-center gap-1.5 text-[11px] text-gray-600 font-medium">
+                  <span className="text-gray-400 font-mono">gs://</span>
+                  <span className="font-mono text-zinc-900 font-bold truncate max-w-[180px]">
+                    {workspaceBucket.bucketName}
+                  </span>
+                  <ChevronRight className="w-3 h-3 text-gray-400" />
+                  <span className="text-gray-400 font-mono">raw</span>
+                  <ChevronRight className="w-3 h-3 text-gray-400" />
+                  <button
+                    type="button"
+                    onClick={() => setBucketFolderFilter("all")}
+                    className={`font-semibold cursor-pointer hover:underline font-mono ${
+                      bucketFolderFilter === "all" ? "text-zinc-900" : "text-gray-500"
+                    }`}
+                  >
+                    {bucketFolderFilter === "all" ? "2026/10" : bucketFolderFilter}
+                  </button>
                 </div>
               </div>
 
-              {/* Bucket Objects List */}
-              <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+              {/* Bucket Storage Metadata & Folders Row */}
+              <div className="px-4 py-2 bg-gray-50/40 border-b border-gray-100 flex items-center justify-between text-xs overflow-x-auto gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                    Folders:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setBucketFolderFilter(bucketFolderFilter === "raw" ? "all" : "raw")}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs cursor-pointer ${
+                      bucketFolderFilter === "raw"
+                        ? "bg-zinc-900 text-white border-zinc-900"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    <Folder className="w-3 h-3 text-zinc-500" />
+                    <span className="font-mono text-[11px]">raw/2026/10</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(workspaceBucket.bucketUri, "bucket_uri")}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-white border border-gray-200 text-zinc-700 hover:bg-gray-50 cursor-pointer"
+                  >
+                    {copiedKey === "bucket_uri" ? (
+                      <Check className="w-3 h-3 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3 h-3 text-gray-400" />
+                    )}
+                    <span>Copy Bucket URI</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Cloud Store Bucket File Listing */}
+              <div className="flex-1 overflow-y-auto">
                 {filteredBucketFiles.length === 0 ? (
                   <div className="p-8 text-center text-xs text-gray-400">
-                    No objects found in this workspace bucket.
+                    No immutable objects found in this Cloud Store bucket.
                   </div>
+                ) : bucketViewMode === "list" ? (
+                  /* Cloud Store Bucket LIST VIEW */
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-200/80 text-[11px] font-medium text-gray-500 bg-gray-50/30 sticky top-0 z-10 backdrop-blur-xs">
+                        <th className="py-2 px-4 font-medium">Object Name</th>
+                        <th className="py-2 px-3 font-medium hidden sm:table-cell">SHA-256 Digest</th>
+                        <th className="py-2 px-3 font-medium hidden md:table-cell">Ingested</th>
+                        <th className="py-2 px-3 font-medium">Size</th>
+                        <th className="py-2 px-3 font-medium text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filteredBucketFiles.map((file) => {
+                        const isSelected = selectedBucketFileId === file.id;
+                        return (
+                          <tr
+                            key={file.id}
+                            onClick={() => setSelectedBucketFileId(file.id)}
+                            className={`transition-colors cursor-pointer group ${
+                              isSelected
+                                ? "bg-zinc-100/90 font-medium text-zinc-900"
+                                : "hover:bg-gray-50/80 text-gray-700"
+                            }`}
+                          >
+                            {/* Object Name & Icon */}
+                            <td className="py-2.5 px-4">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="relative">
+                                  {renderDriveFileIcon(file.fileType)}
+                                  <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-zinc-900 text-white flex items-center justify-center">
+                                    <Lock className="w-2 h-2 text-white" />
+                                  </span>
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-medium text-gray-900 truncate">
+                                    {file.filename}
+                                  </div>
+                                  <div className="text-[10px] text-gray-400 font-mono truncate">
+                                    {file.path}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* SHA-256 Digest */}
+                            <td className="py-2.5 px-3 hidden sm:table-cell">
+                              <div className="flex items-center gap-1 font-mono text-[10px] text-zinc-700">
+                                <span className="bg-gray-100 px-1.5 py-0.5 rounded font-semibold truncate max-w-[120px]">
+                                  {formatDigest(file.sourceSha256, 6, 4)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCopy(file.sourceSha256, file.id);
+                                  }}
+                                  className="text-gray-400 hover:text-zinc-900 p-0.5 cursor-pointer"
+                                  title="Copy full SHA-256"
+                                >
+                                  {copiedKey === file.id ? (
+                                    <Check className="w-3 h-3 text-emerald-600" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Ingestion Timestamp */}
+                            <td className="py-2.5 px-3 text-[11px] text-gray-500 hidden md:table-cell whitespace-nowrap">
+                              {file.uploadedAt}
+                            </td>
+
+                            {/* File Size */}
+                            <td className="py-2.5 px-3 text-[11px] text-gray-500 whitespace-nowrap font-mono">
+                              {file.size}
+                            </td>
+
+                            {/* Actions / Inspect */}
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedDoc(file.demoDocRef);
+                                  }}
+                                  className="px-2 py-1 text-[11px] font-medium border border-gray-200 bg-white hover:bg-gray-100 rounded-md text-gray-700 transition-colors cursor-pointer shadow-2xs"
+                                >
+                                  Inspect Findings
+                                </button>
+                                <span className="p-1 text-gray-400 hover:text-gray-700 rounded-md">
+                                  <MoreVertical className="w-3.5 h-3.5" />
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 ) : (
-                  filteredBucketFiles.map((file) => (
-                    <div
-                      key={file.id}
-                      className="p-3.5 hover:bg-gray-50/80 transition-colors flex items-center justify-between gap-3 text-xs"
-                    >
-                      <div className="flex items-start gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-zinc-900 text-white flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Lock className="w-4 h-4 text-zinc-300" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-gray-900 truncate">
-                              {file.filename}
-                            </span>
-                            <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-700">
-                              {file.fileType}
+                  /* Cloud Store Bucket GRID VIEW */
+                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {filteredBucketFiles.map((file) => {
+                      const isSelected = selectedBucketFileId === file.id;
+                      return (
+                        <div
+                          key={file.id}
+                          onClick={() => setSelectedBucketFileId(file.id)}
+                          className={`border rounded-xl p-3.5 transition-all cursor-pointer flex flex-col justify-between h-40 ${
+                            isSelected
+                              ? "bg-zinc-50 border-zinc-900 shadow-2xs ring-1 ring-zinc-900"
+                              : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-xs"
+                          }`}
+                        >
+                          {/* Card Top: Icon & Key & Lock */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="relative">
+                                {renderDriveFileIcon(file.fileType)}
+                                <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-zinc-900 text-white flex items-center justify-center">
+                                  <Lock className="w-2 h-2 text-white" />
+                                </span>
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-xs font-semibold text-gray-900 truncate">
+                                  {file.filename}
+                                </div>
+                                <div className="text-[10px] text-gray-400 font-mono truncate">
+                                  {file.path}
+                                </div>
+                              </div>
+                            </div>
+                            <MoreVertical className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          </div>
+
+                          {/* Card Middle: Digest Pill & Lock Badge */}
+                          <div className="my-2 p-2 bg-gray-50/80 rounded-lg border border-gray-100 flex items-center justify-between text-[10px] font-mono text-gray-600">
+                            <span className="truncate">SHA: {formatDigest(file.sourceSha256, 8, 4)}</span>
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-zinc-900 text-white font-sans uppercase">
+                              WORM
                             </span>
                           </div>
 
-                          <div className="text-[11px] text-gray-500 font-mono mt-0.5 truncate">
-                            Key: {file.path}
-                          </div>
-
-                          <div className="flex items-center gap-2 font-mono text-[10px] text-gray-400 mt-1">
-                            <span>SHA-256:</span>
-                            <span className="text-zinc-700 font-semibold">
-                              {formatDigest(file.sourceSha256, 8, 6)}
-                            </span>
+                          {/* Card Bottom: Metadata & Action */}
+                          <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1 border-t border-gray-100">
+                            <span className="font-mono text-[10px]">{file.size}</span>
                             <button
                               type="button"
-                              onClick={() => handleCopy(file.sourceSha256, file.id)}
-                              className="text-gray-400 hover:text-zinc-900"
-                              title="Copy SHA-256"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedDoc(file.demoDocRef);
+                              }}
+                              className="text-zinc-900 hover:underline font-medium text-[11px] cursor-pointer"
                             >
-                              {copiedKey === file.id ? (
-                                <Check className="w-3 h-3 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3 h-3" />
-                              )}
+                              Inspect Findings
                             </button>
-                            <span>&middot;</span>
-                            <span>{file.size}</span>
                           </div>
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <DocumentStatusBadge state={file.safetyState} />
-                        <button
-                          type="button"
-                          onClick={() => setSelectedDoc(file.demoDocRef)}
-                          className="px-2.5 py-1 text-[11px] font-medium border border-gray-200 hover:bg-gray-100 rounded-md text-gray-700 transition-colors cursor-pointer"
-                        >
-                          Inspect Findings
-                        </button>
-                      </div>
-                    </div>
-                  ))
+                      );
+                    })}
+                  </div>
                 )}
               </div>
 
-              {/* Card Footer Integrity Guarantee */}
-              <div className="p-3 bg-gray-50 border-t border-gray-100 text-[11px] text-gray-500 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-zinc-800" />
-                  <span>Immutable WORM Guarantee: Byte-intact preservation. Raw files never exposed to LLMs.</span>
+              {/* Bucket Contextual Status Bar */}
+              <div className="p-3 bg-gray-50 border-t border-gray-200/80 text-[11px] text-gray-600 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 truncate">
+                  <Lock className="w-3.5 h-3.5 text-zinc-900 flex-shrink-0" />
+                  <span className="truncate">
+                    {selectedBucketFile
+                      ? `Selected: ${selectedBucketFile.filename} (${selectedBucketFile.size}) · WORM Locked`
+                      : `WORM Retention Enforced · KMS AES-256-GCM · ${workspaceBucket.storageClass}`}
+                  </span>
+                </div>
+                <span className="font-mono text-[10px] text-emerald-700 font-medium flex-shrink-0">
+                  Datastore Synchronized
                 </span>
-                <span className="font-mono text-[10px] text-zinc-700 font-medium">AES-256-GCM</span>
               </div>
             </div>
           </div>
 
-          {/* BOTTOM SECTION: Multi-Tab View taken from Roles listing -> Cloud Bucket View of each Role */}
+          {/* ========================================================================= */}
+          {/* BOTTOM SECTION: Multi-Tab View taken from Roles listing                   */}
+          {/* ========================================================================= */}
           <div className="bg-white border border-gray-200/80 rounded-2xl shadow-xs overflow-hidden">
             {/* Section Header */}
             <div className="p-5 sm:p-6 border-b border-gray-100 bg-gray-50/60">
@@ -576,7 +1037,7 @@ export default function DocumentsPage() {
                       <button
                         type="button"
                         onClick={() => handleCopy(currentRoleBucket.bucketUri, "role_bucket_uri")}
-                        className="text-gray-400 hover:text-zinc-900"
+                        className="text-gray-400 hover:text-zinc-900 cursor-pointer"
                         title="Copy role bucket URI"
                       >
                         {copiedKey === "role_bucket_uri" ? (
@@ -718,6 +1179,29 @@ export default function DocumentsPage() {
           </div>
         </div>
 
+        {/* Live Google Drive OAuth Consent & Consented Areas Modal */}
+        <GoogleDriveConsentModal
+          isOpen={isConsentModalOpen}
+          onClose={() => setIsConsentModalOpen(false)}
+          onConsentUpdated={(items, areas, newSession) => {
+            setDriveSession(newSession);
+            if (items.length > 0) {
+              setConsentedItems(items);
+            }
+            if (areas.length > 0) {
+              setConsentedAreas(areas);
+            }
+            if (newSession) {
+              setSyncFeedback(
+                `Google Drive connected: ${newSession.userEmail || "Authorized"}. Ingested ${
+                  items.length
+                } files from your consented folders.`
+              );
+              setTimeout(() => setSyncFeedback(null), 5000);
+            }
+          }}
+        />
+
         {/* Existing RedactCore Entity Findings Modal */}
         <FindingsModal document={selectedDoc} onClose={() => setSelectedDoc(null)} />
 
@@ -745,7 +1229,7 @@ export default function DocumentsPage() {
                   onClick={() => setSelectedGuardedDiff(null)}
                   className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
 
