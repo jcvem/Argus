@@ -40,9 +40,9 @@ export interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const DEMO_USER: DemoUser = {
-  uid: "demo-analyst-session",
-  email: "analyst@argus-demo.internal",
-  displayName: "Security Analyst (Demo Shell)",
+  uid: "user-admin-jc",
+  email: "jc@vem-studio.com",
+  displayName: "JC (Lead Admin)",
   isDemo: true,
 };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { DEFAULT_ORG_WORKSPACES } from "./org-service";
 
 export interface WorkspaceItem {
   id: string;
@@ -8,27 +9,28 @@ export interface WorkspaceItem {
   type: string;
   badge?: string;
   description?: string;
+  orgId?: string;
+  storagePrefix?: string;
 }
 
 export const DEFAULT_WORKSPACES: WorkspaceItem[] = [
   {
-    id: "argus-core",
-    name: "Argus Core Operations",
+    id: DEFAULT_ORG_WORKSPACES[0].id, // "ws-demo-hukurou"
+    name: DEFAULT_ORG_WORKSPACES[0].name, // "Demo-HUKUROU"
+    type: "Demo Sandbox",
+    badge: "SANDBOX",
+    description: DEFAULT_ORG_WORKSPACES[0].description,
+    orgId: DEFAULT_ORG_WORKSPACES[0].orgId,
+    storagePrefix: DEFAULT_ORG_WORKSPACES[0].storagePrefix,
+  },
+  {
+    id: DEFAULT_ORG_WORKSPACES[1].id, // "ws-prod-hukurou"
+    name: DEFAULT_ORG_WORKSPACES[1].name, // "HUKUROU"
     type: "Production Control Plane",
-    badge: "ACTIVE",
-    description: "Primary enterprise data protection & view synthesis workspace",
-  },
-  {
-    id: "redactcore-local",
-    name: "RedactCore Daemon Local",
-    type: "Local Daemon · Port 8000",
-    description: "Developer testing environment with local policy simulation",
-  },
-  {
-    id: "enterprise-vault",
-    name: "Enterprise Prod Vault",
-    type: "Multi-tenant Isolated",
-    description: "High-security zero-retention regulatory enclave",
+    badge: "PRODUCTION",
+    description: DEFAULT_ORG_WORKSPACES[1].description,
+    orgId: DEFAULT_ORG_WORKSPACES[1].orgId,
+    storagePrefix: DEFAULT_ORG_WORKSPACES[1].storagePrefix,
   },
 ];
 

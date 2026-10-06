@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { ProtectedRoute } from "@/lib/auth-context";
+import { ProtectedRoute, useAuth } from "@/lib/auth-context";
+import { orgService } from "@/lib/org-service";
 import { AppShell } from "@/components/AppShell";
 import { TimelineCard, TimelineEntryData } from "@/components/TimelineCard";
 import { HealthCards } from "@/components/HealthCards";
@@ -23,6 +24,7 @@ import {
   FileSpreadsheet,
   Clock,
   Filter,
+  Database,
 } from "lucide-react";
 
 // Canonical timeline activity feed entries matching UI_concept.png
@@ -216,6 +218,31 @@ export default function DashboardPage() {
   // Show extra telemetry section
   const [showTelemetry, setShowTelemetry] = useState(false);
 
+  // Firestore HUKUROU Provisioning state
+  const { user } = useAuth();
+  const [isProvisioning, setIsProvisioning] = useState(false);
+  const [provisionMessage, setProvisionMessage] = useState<{ success: boolean; text: string } | null>(null);
+
+  const handleProvisionHukurou = async () => {
+    setIsProvisioning(true);
+    setProvisionMessage(null);
+    const adminUid = user?.uid || "user-admin-jc";
+    const adminEmail = user?.email || "jc@vem-studio.com";
+    const res = await orgService.provisionHukurouToFirestore(adminUid, adminEmail);
+    setIsProvisioning(false);
+    if (res.success) {
+      setProvisionMessage({
+        success: true,
+        text: `HUKUROU organization provisioned to Firestore with ${res.recordsCreated} records. Admin: ${adminEmail}`,
+      });
+    } else {
+      setProvisionMessage({
+        success: false,
+        text: res.error || "Failed to provision records to Firestore.",
+      });
+    }
+  };
+
   const loadHealthData = async () => {
     setLoading(true);
     const result = await api.checkHealth();
@@ -303,6 +330,61 @@ export default function DashboardPage() {
                 <span>New View</span>
               </Link>
             </div>
+          </div>
+
+          {/* HUKUROU Organization & Firestore Provisioning Banner */}
+          <div className="bg-white border border-gray-200/80 rounded-xl p-4 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-zinc-900 text-white flex items-center justify-center font-bold text-xs">
+                  HK
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-gray-900 tracking-tight">
+                      Organization: HUKUROU
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-800 border border-zinc-200">
+                      Tier: Enterprise (10 Seats)
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500 font-mono mt-0.5 flex items-center gap-2">
+                    <span>Cloud Storage: gs://argus-tenant-org-hukurou</span>
+                    <span>&middot;</span>
+                    <span>Admin: jc@vem-studio.com</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleProvisionHukurou}
+                  disabled={isProvisioning}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors shadow-xs"
+                >
+                  <Database className="w-3.5 h-3.5" />
+                  <span>{isProvisioning ? "Provisioning..." : "Provision HUKUROU to Firestore"}</span>
+                </button>
+              </div>
+            </div>
+
+            {provisionMessage && (
+              <div
+                className={`p-3 rounded-lg border text-xs font-mono flex items-center gap-2 ${
+                  provisionMessage.success
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                    : "bg-red-50 border-red-200 text-red-900"
+                }`}
+              >
+                {provisionMessage.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                )}
+                <span>{provisionMessage.text}</span>
+              </div>
+            )}
           </div>
 
           {/* Active Filter Pill Bar (if role or search is active) */}

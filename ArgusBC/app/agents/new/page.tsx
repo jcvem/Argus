@@ -3,9 +3,11 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ProtectedRoute } from "@/lib/auth-context";
+import { ProtectedRoute, useAuth } from "@/lib/auth-context";
 import { AppShell } from "@/components/AppShell";
 import { useAgents } from "@/lib/agent-context";
+import { useWorkspace } from "@/lib/workspace-context";
+import { orgService, SYSTEM_ROLES } from "@/lib/org-service";
 import { LOCAL_POLICIES, DEMO_DOCUMENTS } from "@/lib/api";
 import {
   Bot,
@@ -17,14 +19,19 @@ import {
   ArrowLeft,
   CheckCircle2,
   AlertCircle,
+  ShieldAlert,
+  Lock,
 } from "lucide-react";
 
 export default function CreateAgentPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const { createAgent } = useAgents();
+  const { selectedWorkspace } = useWorkspace();
 
   const [name, setName] = useState("");
-  const [role, setRole] = useState("");
+  const [roleName, setRoleName] = useState("Member");
+  const [roleId, setRoleId] = useState("role-member");
   const [category, setCategory] = useState<"Developer" | "Designer" | "Partner" | "Marketing" | "Operations">("Developer");
   const [model, setModel] = useState("Claude 3.5 Sonnet");
   const [policyId, setPolicyId] = useState(LOCAL_POLICIES[0].policy_id);
@@ -34,22 +41,53 @@ export default function CreateAgentPage() {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const availableRoles = orgService.getRoles();
+  const selectedRole = availableRoles.find((r) => r.id === roleId) || SYSTEM_ROLES[2];
+
+  const handleRoleSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const rId = e.target.value;
+    const found = availableRoles.find((r) => r.id === rId);
+    if (found?.isAdmin || found?.name.toLowerCase() === "admin") {
+      setFormError("Security Guardrail: AI Agents CANNOT have the Admin role.");
+      return;
+    }
+    setFormError(null);
+    setRoleId(rId);
+    setRoleName(found?.name || "Member");
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !role.trim()) return;
+    if (!name.trim() || !roleName.trim()) return;
+
+    if (selectedRole.isAdmin || selectedRole.name.toLowerCase() === "admin") {
+      setFormError("Cerberus Security Invariant: AI Agents CANNOT have the Admin role.");
+      return;
+    }
 
     setIsSubmitting(true);
-    const newAgent = createAgent({
+    setFormError(null);
+
+    const result = createAgent({
       name: name.trim(),
-      role: role.trim(),
+      role: selectedRole.name,
+      roleId: selectedRole.id,
       category,
       model,
       policyId,
       targetFiles: [targetFile],
       systemPrompt: systemPrompt.trim(),
       status: "active",
+      workspaceId: selectedWorkspace.id,
     });
+
+    if (!result.success) {
+      setIsSubmitting(false);
+      setFormError(result.error || "Failed to create agent");
+      return;
+    }
 
     setIsSubmitting(false);
     setSuccess(true);
@@ -77,15 +115,25 @@ export default function CreateAgentPage() {
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
                   <span>Create AI Agent</span>
                   <span className="text-xs font-mono font-normal text-zinc-800 bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded-full">
-                    RedactCore Enforced
+                    Workspace: {selectedWorkspace.name}
                   </span>
                 </h1>
                 <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                  Define an autonomous agent persona with bounded data access and fail-closed privacy rules.
+                  Define an autonomous agent persona. Scoped strictly to{" "}
+                  <strong className="text-gray-700">{selectedWorkspace.name}</strong> under Cerberus gateway least-privilege rules.
                 </p>
               </div>
             </div>
           </div>
+
+          {formError && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-800 text-xs">
+              <ShieldAlert className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <div>
+                <span className="font-bold">Authorization Rejected:</span> {formError}
+              </div>
+            </div>
+          )}
 
           {success && (
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-800 text-xs">
@@ -99,10 +147,10 @@ export default function CreateAgentPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Form */}
             <form onSubmit={handleSubmit} className="lg:col-span-2 space-y-5 bg-white border border-gray-200/80 rounded-xl p-6 shadow-xs">
-              {/* Agent Identity */}
+              {/* Agent Identity & Role */}
               <div className="space-y-4">
                 <div className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                  1. Agent Identity
+                  1. Agent Identity &amp; Cerberus Governance
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -122,41 +170,66 @@ export default function CreateAgentPage() {
 
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Persona Role <span className="text-red-500">*</span>
+                      Assigned Role <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Financial Forensics Analyst"
-                      value={role}
-                      onChange={(e) => setRole(e.target.value)}
+                    <select
+                      value={roleId}
+                      onChange={handleRoleSelect}
                       className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-900 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
-                    />
+                    >
+                      {availableRoles.map((r) => (
+                        <option
+                          key={r.id}
+                          value={r.id}
+                          disabled={r.isAdmin || r.name.toLowerCase() === "admin"}
+                        >
+                          {r.name} (Rank: {r.rank}) {r.isAdmin ? "[BLOCKED FOR AGENTS]" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="text-[11px] text-gray-500 mt-1 flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-gray-400" />
+                      <span>Security Invariant: Admin role cannot be assigned to agents.</span>
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Role Category (Quick Filter)
-                  </label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value as any)}
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-900 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
-                  >
-                    <option value="Developer">Developer</option>
-                    <option value="Designer">Designer</option>
-                    <option value="Partner">Partner</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Operations">Operations</option>
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Role Category
+                    </label>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value as any)}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-900 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
+                    >
+                      <option value="Developer">Developer</option>
+                      <option value="Designer">Designer</option>
+                      <option value="Partner">Partner</option>
+                      <option value="Marketing">Marketing</option>
+                      <option value="Operations">Operations</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Deployment Workspace
+                    </label>
+                    <input
+                      type="text"
+                      disabled
+                      value={`${selectedWorkspace.name} (${selectedWorkspace.type})`}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500 font-mono"
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Execution & Security Boundaries */}
               <div className="space-y-4 pt-4 border-t border-gray-100">
                 <div className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                  2. Privacy Boundary &amp; Model
+                  2. Model &amp; RedactCore Privacy Policy
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -196,7 +269,7 @@ export default function CreateAgentPage() {
 
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Permitted Ingest Document
+                    Cerberus RAG Scope / Permitted Store
                   </label>
                   <select
                     value={targetFile}
@@ -229,7 +302,7 @@ export default function CreateAgentPage() {
                     className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono text-gray-800 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 leading-relaxed"
                   />
                   <div className="text-[11px] text-gray-400 mt-1">
-                    RedactCore automatically wraps incoming queries with deterministic safety filters.
+                    Cerberus gateway intercepts prompts and ensures RAG queries only receive RedactCore-derived representations.
                   </div>
                 </div>
               </div>
@@ -243,7 +316,7 @@ export default function CreateAgentPage() {
                 </Link>
                 <button
                   type="submit"
-                  disabled={isSubmitting || !name.trim() || !role.trim()}
+                  disabled={isSubmitting || !name.trim() || !roleName.trim() || selectedRole.isAdmin}
                   className="px-5 py-2 bg-zinc-900 text-white rounded-lg text-xs font-semibold hover:bg-zinc-800 disabled:opacity-50 transition-colors shadow-xs"
                 >
                   {isSubmitting ? "Deploying..." : "Deploy AI Agent"}
@@ -268,7 +341,7 @@ export default function CreateAgentPage() {
                         {name || "Agent Name"}
                       </div>
                       <div className="text-xs text-gray-500 font-normal leading-tight mt-0.5">
-                        {role || "Persona Role"}
+                        {selectedRole.name} (Rank: {selectedRole.rank})
                       </div>
                     </div>
                   </div>
@@ -277,6 +350,11 @@ export default function CreateAgentPage() {
                     <CheckCircle2 className="w-2.5 h-2.5" />
                     <span>active</span>
                   </span>
+                </div>
+
+                <div className="text-[11px] font-mono text-gray-500 bg-gray-50 p-2 rounded border border-gray-200">
+                  <div>Workspace: {selectedWorkspace.name}</div>
+                  <div>GCS Prefix: workspaces/{selectedWorkspace.id}/derived/</div>
                 </div>
 
                 <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed">
@@ -314,9 +392,9 @@ export default function CreateAgentPage() {
                 <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-lg text-[11px] text-zinc-800 leading-relaxed">
                   <div className="font-semibold flex items-center gap-1 mb-0.5 text-zinc-900">
                     <Sparkles className="w-3 h-3 text-zinc-700" />
-                    <span>Fail-Closed Enclave</span>
+                    <span>Cerberus Invariant</span>
                   </div>
-                  Zero raw data reaches {name || "this agent"}. RedactCore renders dynamic view transformations prior to inference.
+                  Agent cannot possess Admin rights. Queries execute strictly with caller rank ({selectedRole.rank}) against RedactCore derived views.
                 </div>
               </div>
             </div>
