@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
+import { orgService } from "@/lib/org-service";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { ArgusLogo } from "@/components/ArgusLogo";
 import {
   ShieldCheck,
@@ -39,7 +41,12 @@ export default function SignInPage() {
 
   // If already authenticated or in demo mode, offer quick jump to dashboard
   const handleProceedToDashboard = () => {
-    router.push("/dashboard");
+    const userOrgs = user ? orgService.getUserOrganizations(user.uid, user.email || undefined) : [];
+    if (userOrgs.length === 0) {
+      router.push("/onboarding");
+    } else {
+      router.push("/dashboard");
+    }
   };
 
   const handleEnterDemo = () => {
@@ -55,7 +62,14 @@ export default function SignInPage() {
     try {
       setLocalLoading(true);
       await signInWithGoogle();
-      router.push("/dashboard");
+      const auth = getFirebaseAuth();
+      const currentUser = auth?.currentUser;
+      const orgs = orgService.getUserOrganizations(currentUser?.uid, currentUser?.email || undefined);
+      if (orgs.length === 0) {
+        router.push("/onboarding");
+      } else {
+        router.push("/dashboard");
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Google sign-in failed";
       setFormError(msg);
@@ -81,7 +95,14 @@ export default function SignInPage() {
       } else {
         await signUpWithEmail(email, password);
       }
-      router.push("/dashboard");
+      const auth = getFirebaseAuth();
+      const currentUser = auth?.currentUser;
+      const orgs = orgService.getUserOrganizations(currentUser?.uid, currentUser?.email || email);
+      if (orgs.length === 0) {
+        router.push("/onboarding");
+      } else {
+        router.push("/dashboard");
+      }
     } catch (err: unknown) {
       const msg =
         err instanceof Error

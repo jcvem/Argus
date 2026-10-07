@@ -273,6 +273,8 @@ export const INITIAL_WORKSPACE_AGENTS: WorkspaceAgent[] = [
 ];
 
 class OrgService {
+  private organizations: Organization[] = [DEFAULT_ORGANIZATION];
+  private currentOrgId: string = DEFAULT_ORGANIZATION.id;
   private organization: Organization = DEFAULT_ORGANIZATION;
   private workspaces: Workspace[] = DEFAULT_ORG_WORKSPACES;
   private roles: OrganizationRole[] = SYSTEM_ROLES;
@@ -287,8 +289,18 @@ class OrgService {
   private loadFromStorage() {
     if (typeof window === "undefined") return;
     try {
-      const savedOrg = localStorage.getItem("argus_org");
-      if (savedOrg) this.organization = JSON.parse(savedOrg);
+      const savedAllOrgs = localStorage.getItem("argus_all_orgs");
+      if (savedAllOrgs) this.organizations = JSON.parse(savedAllOrgs);
+
+      const savedCurOrgId = localStorage.getItem("argus_current_org_id");
+      if (savedCurOrgId) {
+        this.currentOrgId = savedCurOrgId;
+        const current = this.organizations.find((o) => o.id === savedCurOrgId);
+        if (current) this.organization = current;
+      } else {
+        const savedOrg = localStorage.getItem("argus_org");
+        if (savedOrg) this.organization = JSON.parse(savedOrg);
+      }
 
       const savedWs = localStorage.getItem("argus_org_workspaces");
       if (savedWs) this.workspaces = JSON.parse(savedWs);
@@ -372,6 +384,8 @@ class OrgService {
   private saveToStorage() {
     if (typeof window === "undefined") return;
     try {
+      localStorage.setItem("argus_all_orgs", JSON.stringify(this.organizations));
+      localStorage.setItem("argus_current_org_id", this.currentOrgId);
       localStorage.setItem("argus_org", JSON.stringify(this.organization));
       localStorage.setItem("argus_org_workspaces", JSON.stringify(this.workspaces));
       localStorage.setItem("argus_org_roles", JSON.stringify(this.roles));
@@ -388,8 +402,224 @@ class OrgService {
     return this.organization;
   }
 
-  public getWorkspaces(): Workspace[] {
-    return this.workspaces;
+  public getAllOrganizations(): Organization[] {
+    return this.organizations;
+  }
+
+  public getUserOrganizations(userId?: string, email?: string): Organization[] {
+    const cleanId = userId?.toLowerCase();
+    const cleanEmail = email?.toLowerCase();
+
+    // Lead Admin jc@vem-studio.com always belongs to HUKUROU
+    const isJc = cleanEmail === "jc@vem-studio.com" || cleanId === "jc@vem-studio.com";
+
+    const userOrgIds = new Set<string>();
+    if (isJc) {
+      userOrgIds.add(DEFAULT_ORGANIZATION.id);
+    }
+
+    for (const member of this.members) {
+      if (
+        (cleanId && member.userId?.toLowerCase() === cleanId) ||
+        (cleanEmail && member.email?.toLowerCase() === cleanEmail)
+      ) {
+        userOrgIds.add(member.orgId);
+      }
+    }
+
+    return this.organizations.filter((org) => userOrgIds.has(org.id));
+  }
+
+  public getUserPendingInvitations(email?: string): UserInvitation[] {
+    if (!email) return [];
+    const cleanEmail = email.toLowerCase().trim();
+    return this.invitations.filter(
+      (inv) => inv.status === "pending" && inv.email?.toLowerCase() === cleanEmail
+    );
+  }
+
+  public switchOrganization(orgId: string): Organization | undefined {
+    const found = this.organizations.find((o) => o.id === orgId);
+    if (found) {
+      this.currentOrgId = orgId;
+      this.organization = found;
+      this.saveToStorage();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("argus-org-changed", { detail: { orgId } }));
+      }
+      return found;
+    }
+    return undefined;
+  }
+
+  public createOrganization(
+    name: string,
+    adminUserId: string,
+    adminEmail: string,
+    adminDisplayName?: string
+  ): {
+    success: boolean;
+    organization: Organization;
+    workspaces: Workspace[];
+    roles: OrganizationRole[];
+    member: OrganizationMember;
+  } {
+    const trimmedName = name.trim();
+    const slug = trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "org";
+    const orgId = `org-${slug}-${Date.now().toString(36)}`;
+    const bucketName = `argus-tenant-${slug}`;
+
+    const newOrg: Organization = {
+      id: orgId,
+      name: trimmedName,
+      slug,
+      storageBucketName: bucketName,
+      subscription: {
+        status: "active",
+        tier: "starter",
+        seatLimit: 10,
+        seatsAllocated: 1,
+        startDate: new Date().toISOString(),
+        currentPeriodEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        autoRenew: true,
+      },
+      defaultAdminRoleId: `role-admin-${orgId}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const demoWs: Workspace = {
+      id: `ws-demo-${slug}-${Date.now().toString(36)}`,
+      orgId,
+      name: `Demo-${trimmedName}`,
+      type: "demo",
+      isDefault: true,
+      storagePrefix: `workspaces/ws-demo-${slug}/`,
+      description: `Isolated sandbox environment for prototyping AI agents and testing policies for ${trimmedName}.`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const prodWs: Workspace = {
+      id: `ws-prod-${slug}-${Date.now().toString(36)}`,
+      orgId,
+      name: trimmedName,
+      type: "production",
+      isDefault: true,
+      storagePrefix: `workspaces/ws-prod-${slug}/`,
+      description: `Production data operations workspace with live regulatory privacy controls for ${trimmedName}.`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const orgRoles: OrganizationRole[] = [
+      {
+        id: `role-admin-${orgId}`,
+        orgId,
+        name: "Admin",
+        description: "Full control-plane administrative authority. Cannot be assigned to AI Agents.",
+        isSystemReserved: true,
+        isAdmin: true,
+        rank: 100,
+        permissions: [
+          "org:manage",
+          "billing:manage",
+          "user:invite",
+          "role:create",
+          "policy:create",
+          "policy:edit",
+          "workspace:manage",
+          "agent:create",
+          "agent:transfer",
+          "audit:read",
+        ],
+      },
+      {
+        id: `role-sec-${orgId}`,
+        orgId,
+        name: "SecurityAnalyst",
+        description: "Security and compliance analyst. Can audit redaction logs and simulate policies.",
+        isSystemReserved: true,
+        isAdmin: false,
+        rank: 80,
+        permissions: [
+          "policy:read",
+          "policy:simulate",
+          "audit:read",
+          "agent:create",
+          "document:read",
+        ],
+      },
+      {
+        id: `role-member-${orgId}`,
+        orgId,
+        name: "Member",
+        description: "Standard organization team member with operational agent access.",
+        isSystemReserved: true,
+        isAdmin: false,
+        rank: 50,
+        permissions: ["agent:create", "document:read", "view:generate"],
+      },
+      {
+        id: `role-viewer-${orgId}`,
+        orgId,
+        name: "Viewer",
+        description: "Read-only auditor with restricted view privileges.",
+        isSystemReserved: true,
+        isAdmin: false,
+        rank: 20,
+        permissions: ["document:read"],
+      },
+    ];
+
+    const adminMember: OrganizationMember = {
+      userId: adminUserId,
+      orgId,
+      email: adminEmail,
+      displayName: adminDisplayName || adminEmail.split("@")[0] || "Admin",
+      roleId: `role-admin-${orgId}`,
+      status: "active",
+      joinedAt: new Date().toISOString(),
+    };
+
+    this.organizations.push(newOrg);
+    this.workspaces.push(demoWs, prodWs);
+    this.roles.push(...orgRoles);
+    this.members.push(adminMember);
+
+    this.currentOrgId = orgId;
+    this.organization = newOrg;
+
+    this.saveToStorage();
+
+    const db = getFirebaseFirestore();
+    if (db) {
+      setDoc(doc(db, "organizations", orgId), newOrg, { merge: true }).catch(() => {});
+      setDoc(doc(db, "organizations", orgId, "workspaces", demoWs.id), demoWs, { merge: true }).catch(() => {});
+      setDoc(doc(db, "organizations", orgId, "workspaces", prodWs.id), prodWs, { merge: true }).catch(() => {});
+      for (const r of orgRoles) {
+        setDoc(doc(db, "organizations", orgId, "roles", r.id), r, { merge: true }).catch(() => {});
+      }
+      setDoc(doc(db, "organizations", orgId, "members", adminMember.userId), adminMember, { merge: true }).catch(() => {});
+    }
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("argus-org-changed", { detail: { orgId } }));
+    }
+
+    return {
+      success: true,
+      organization: newOrg,
+      workspaces: [demoWs, prodWs],
+      roles: orgRoles,
+      member: adminMember,
+    };
+  }
+
+  public getWorkspaces(orgId?: string): Workspace[] {
+    const targetOrgId = orgId || this.organization.id;
+    const scoped = this.workspaces.filter((w) => w.orgId === targetOrgId);
+    return scoped.length > 0 ? scoped : this.workspaces;
   }
 
   public getWorkspace(workspaceId: string): Workspace | undefined {
@@ -543,11 +773,15 @@ class OrgService {
     // Mark invitation accepted
     inv.status = "accepted";
 
+    // Switch active organization to the invited organization
+    const targetOrgId = inv.orgId || this.organization.id;
+    this.switchOrganization(targetOrgId);
+
     // Create Active Member
     const targetUserId = newUserId || `user-${Date.now()}`;
     const newMember: OrganizationMember = {
       userId: targetUserId,
-      orgId: this.organization.id,
+      orgId: targetOrgId,
       email: inv.email,
       displayName: displayName || inv.email.split("@")[0],
       roleId: inv.roleId,
@@ -555,15 +789,17 @@ class OrgService {
       joinedAt: new Date().toISOString(),
     };
 
-    // Remove existing member with same email if present, then add
-    this.members = this.members.filter((m) => m.email.toLowerCase() !== inv.email.toLowerCase());
+    // Remove existing member with same email in target org if present, then add
+    this.members = this.members.filter(
+      (m) => !(m.orgId === targetOrgId && m.email.toLowerCase() === inv.email.toLowerCase())
+    );
     this.members.push(newMember);
     this.saveToStorage();
 
     const db = getFirebaseFirestore();
     if (db) {
-      setDoc(doc(db, "organizations", this.organization.id, "invitations", inv.id), inv, { merge: true }).catch(() => {});
-      setDoc(doc(db, "organizations", this.organization.id, "members", newMember.userId), newMember, { merge: true }).catch(() => {});
+      setDoc(doc(db, "organizations", targetOrgId, "invitations", inv.id), inv, { merge: true }).catch(() => {});
+      setDoc(doc(db, "organizations", targetOrgId, "members", newMember.userId), newMember, { merge: true }).catch(() => {});
     }
 
     return { success: true, member: newMember };

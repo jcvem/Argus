@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useWorkspace } from "@/lib/workspace-context";
 import { useAgents } from "@/lib/agent-context";
+import { orgService } from "@/lib/org-service";
 import { ArgusLogo } from "@/components/ArgusLogo";
 import {
   Home,
@@ -25,6 +26,7 @@ import {
   Bot,
   Plus,
   PlusCircle,
+  Building2,
 } from "lucide-react";
 
 interface AppShellProps {
@@ -166,8 +168,11 @@ export function AppShell({
             <div className="flex items-center gap-2.5 min-w-0">
               <ArgusLogo size="md" />
               <div className="min-w-0">
-                <div className="font-bold text-gray-900 text-sm tracking-tight leading-tight">
-                  ARGUS
+                <div className="font-bold text-gray-900 text-sm tracking-tight leading-tight flex items-center gap-1.5">
+                  <span>ARGUS</span>
+                  <span className="text-[10px] font-mono text-zinc-500 font-normal border border-zinc-200 px-1 rounded">
+                    {orgService.getOrganization().name}
+                  </span>
                 </div>
                 <div className="text-xs text-gray-500 font-normal leading-tight flex items-center gap-1 min-w-0">
                   <span
@@ -182,9 +187,25 @@ export function AppShell({
             <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0" />
           </div>
 
-          {/* Workspace Dropdown Menu */}
+          {/* Workspace & Tenancy Dropdown Menu */}
           {teamDropdownOpen && (
             <div className="absolute top-16 left-3 right-3 bg-white border border-gray-200 rounded-lg shadow-elevated p-2 z-50 text-xs">
+              <div className="px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-gray-400 flex items-center justify-between">
+                <span>Active Organization</span>
+                <span className="text-[9px] text-zinc-500 font-normal">TENANT</span>
+              </div>
+              <div className="px-2 py-1.5 mb-1.5 bg-zinc-50 rounded border border-zinc-100 flex items-center justify-between">
+                <div className="truncate font-semibold text-zinc-900 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+                  <span className="truncate">{orgService.getOrganization().name}</span>
+                </div>
+                <span className="text-[9px] font-mono uppercase px-1.5 py-0.2 bg-zinc-200 text-zinc-700 rounded flex-shrink-0">
+                  {orgService.getOrganization().subscription.tier}
+                </span>
+              </div>
+
+              <div className="border-t border-gray-100 my-1" />
+
               <div className="px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-gray-400">
                 Switch Workspace
               </div>
@@ -218,14 +239,16 @@ export function AppShell({
                   );
                 })}
               </div>
+
               <div className="border-t border-gray-100 my-1" />
+
               <Link
-                href="/views/new"
+                href="/onboarding"
                 onClick={() => setTeamDropdownOpen(false)}
-                className="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-zinc-900 font-medium flex items-center gap-1"
+                className="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-zinc-900 font-medium flex items-center gap-1.5"
               >
-                <Eye className="w-3.5 h-3.5" />
-                <span>New Verified View</span>
+                <Plus className="w-3.5 h-3.5 text-zinc-500" />
+                <span>Provision / Join Tenant</span>
               </Link>
             </div>
           )}

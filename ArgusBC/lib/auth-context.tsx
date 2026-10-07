@@ -12,6 +12,7 @@ import {
   firebaseSignOut,
   User,
 } from "./firebase";
+import { orgService } from "./org-service";
 
 export interface DemoUser {
   uid: string;
@@ -234,6 +235,17 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!loading && !user && pathname !== "/signin") {
       router.replace("/signin");
+      return;
+    }
+
+    if (!loading && user) {
+      if (pathname === "/onboarding" || pathname === "/invite" || pathname === "/signin") {
+        return;
+      }
+      const userOrgs = orgService.getUserOrganizations(user.uid, user.email || undefined);
+      if (userOrgs.length === 0) {
+        router.replace("/onboarding");
+      }
     }
   }, [user, loading, router, pathname]);
 

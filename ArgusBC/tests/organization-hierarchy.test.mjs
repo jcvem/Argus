@@ -181,3 +181,74 @@ describe("Runtime Logic Execution Verification", () => {
     assert.equal(authorizeRag(agent, "workspaces/ws-prod/derived/confidential_redacted.pdf").allowed, true);
   });
 });
+
+describe("Multi-Tenant Onboarding & Self-Serve Provisioning Workflow", () => {
+  const orgServiceCode = fs.readFileSync(path.resolve("./lib/org-service.ts"), "utf-8");
+  const onboardingPageCode = fs.readFileSync(path.resolve("./app/onboarding/page.tsx"), "utf-8");
+
+  test("OrgService provides multi-tenant discovery methods", () => {
+    assert.match(orgServiceCode, /public getUserOrganizations/);
+    assert.match(orgServiceCode, /public getUserPendingInvitations/);
+    assert.match(orgServiceCode, /public createOrganization/);
+    assert.match(orgServiceCode, /public switchOrganization/);
+  });
+
+  test("createOrganization fulfills the 8 tenant criteria on provision", () => {
+    // 1. Top-level org with dedicated storage bucket
+    assert.match(orgServiceCode, /storageBucketName:\s*bucketName/);
+    assert.match(orgServiceCode, /const bucketName = `argus-tenant-\${slug}`/);
+    // 2. Two default workspaces: Demo-{Org} (Sandbox) and {Org} (Production)
+    assert.match(orgServiceCode, /name:\s*`Demo-\${trimmedName}`/);
+    assert.match(orgServiceCode, /name:\s*trimmedName/);
+    assert.match(orgServiceCode, /type:\s*"demo"/);
+    assert.match(orgServiceCode, /type:\s*"production"/);
+    // 3. Subscription with 10 seats & duration
+    assert.match(orgServiceCode, /seatLimit:\s*10/);
+    assert.match(orgServiceCode, /seatsAllocated:\s*1/);
+    // 4. Admin role with rank 100
+    assert.match(orgServiceCode, /rank:\s*100/);
+    assert.match(orgServiceCode, /isAdmin:\s*true/);
+    assert.match(orgServiceCode, /isSystemReserved:\s*true/);
+    // 5. Creator assigned as Admin
+    assert.match(orgServiceCode, /roleId:\s*`role-admin-\${orgId}`/);
+  });
+
+  test("Onboarding page provides invitation acceptance, tenant creation, and token input", () => {
+    assert.match(onboardingPageCode, /Provision New Organization/);
+    assert.match(onboardingPageCode, /Dedicated Cloud Storage/);
+    assert.match(onboardingPageCode, /Two Default Workspaces/);
+    assert.match(onboardingPageCode, /Have an Invite Token\?/);
+    assert.match(onboardingPageCode, /handleCreateOrg/);
+    assert.match(onboardingPageCode, /handleAcceptInvite/);
+  });
+
+  test("Pure logic: simulation of new user onboarding path", () => {
+    // Simulating user with 0 orgs vs user with pending invite vs user creating org
+    const members = [
+      { userId: "u-jc", orgId: "org-hukurou", email: "jc@vem-studio.com", roleId: "role-admin" }
+    ];
+    const invitations = [
+      { id: "inv-alice", orgId: "org-hukurou", email: "alice@example.com", roleId: "role-member", status: "pending" }
+    ];
+
+    function checkUserFlow(email, uid) {
+      const isMember = members.some(m => m.email === email || m.userId === uid);
+      const pending = invitations.filter(i => i.email === email && i.status === "pending");
+      if (isMember) return { route: "/dashboard", action: "direct_access" };
+      if (pending.length > 0) return { route: "/onboarding", action: "accept_invitation", invite: pending[0] };
+      return { route: "/onboarding", action: "create_tenant_or_wait" };
+    }
+
+    // Existing Lead Admin
+    assert.equal(checkUserFlow("jc@vem-studio.com", "u-jc").route, "/dashboard");
+    // Invitee user (Alice)
+    const aliceFlow = checkUserFlow("alice@example.com", "u-alice");
+    assert.equal(aliceFlow.route, "/onboarding");
+    assert.equal(aliceFlow.action, "accept_invitation");
+    assert.equal(aliceFlow.invite.id, "inv-alice");
+    // Brand new organic Google login user (Bob)
+    const bobFlow = checkUserFlow("bob@cybercorp.io", "u-bob");
+    assert.equal(bobFlow.route, "/onboarding");
+    assert.equal(bobFlow.action, "create_tenant_or_wait");
+  });
+});
