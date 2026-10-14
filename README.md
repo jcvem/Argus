@@ -1,200 +1,349 @@
 # Argus
 
-> *The Hundred-Eyed Giant, Guardian of Enterprise Data.*
+> **Give AI the context it needs—not the data it does not.**
 
-**Argus** is an attribute-based access control (ABAC) and privacy-preservation platform designed for modern enterprises sharing data with both **human collaborators** and **autonomous AI agents**.
+Argus is a policy-governed data plane for humans and AI agents. It helps organizations use cross-department business data without giving every person, agent, or model unrestricted access to raw files.
 
----
+## Core thesis
 
-## The Core Thesis
-
-Traditional access control systems ask a binary question:
+Traditional file permissions ask:
 
 ```text
-Can this identity access the document? (ALLOW / DENY)
+Can this identity open this file?  ALLOW / DENY
 ```
 
-In an era of ubiquitous AI agents, MCP tool execution, and cross-departmental collaboration, binary access control breaks down:
-- **Too permissive:** Granting full access exposes sensitive PII, executive compensation, customer identifiers, or proprietary keys.
-- **Too restrictive:** Denying access prevents humans and AI agents from performing their jobs with the subset of data they actually need.
+That is too coarse for modern AI work. A useful task may need data from sales, operations, finance, customer service, or engineering, while the requester should not receive every field in every source.
 
-Argus shifts the paradigm from binary gating to **policy-governed representation**:
+Argus asks:
 
 ```text
-What representation of this document or data may this identity receive?
+What representation of this data may this identity receive
+for this purpose, at this time?
 ```
 
-Argus delivers **"Allow with Transformation"**—automatically producing mathematically verified, role-tailored, privacy-preserved views (PDF, DOCX, and structured data) derived from immutable enterprise originals.
-
----
-
-## System Architecture
-
-Argus is organized into four specialized modules with strict separation of concerns, orchestrated through a centralized control plane:
+This enables **allow with transformation**:
 
 ```text
-Policy / Agent Change
-         │
-         ▼
- ┌───────────────┐
- │    Medusa     │ ──► Change-impact simulation, blast radius analysis, and quarantine
- └───────┬───────┘
-         │
-         ▼
- ┌───────────────┐
- │   Aristotle   │ ──► Formal policy consistency, contradiction checks, and counterexamples
- └───────┬───────┘
-         │
-         ▼
- ┌───────────────┐
- │ Human Review  │ ──► Approvals & governance via Argus Control Plane (ArgusBC)
- └───────┬───────┘
-         │
-         ▼
- ┌───────────────┐
- │   Cerberus    │ ──► Runtime Policy Enforcement Point (PEP) & AI/MCP gateway
- └───────┬───────┘
-         │
-         ▼
- ┌───────────────┐
- │  RedactCore   │ ──► Parsing, entity detection, true redaction, and leak verification
- └───────┬───────┘
-         │
-         ▼
- [Derived View Delivered to Human / AI Agent]
+allow the task
++ filter irrelevant records
++ mask identifiers
++ redact sensitive fields
++ aggregate where detail is unnecessary
++ require review when uncertainty remains
++ deny when safe delivery cannot be proven
 ```
 
-### Module Responsibilities
+Argus is not a replacement for an identity provider, DLP platform, object store, or vector database. It is the policy and verified-view layer between those systems and humans, AI agents, RAG systems, and tools.
 
-| Module | Role | Core Responsibility | Status |
-| :--- | :--- | :--- | :--- |
-| **[RedactCore](file:///Users/jc/Code/Argus/RedactCore)** | **Transformation & Verification Engine** | Parses documents, detects sensitive entities, executes physical redaction, verifies zero post-transform leakage, and generates tamper-evident audit manifests. | **Implemented** (Python / FastAPI) |
-| **[ArgusBC](file:///Users/jc/Code/Argus/ArgusBC)** | **Control Plane UI** | High-density enterprise dashboard for policy authoring, document inspection, multi-persona view comparison, and compliance auditing. | **Implemented** (Next.js / TypeScript) |
-| **[Cerberus](file:///Users/jc/Code/Argus/Cerberus)** | **Runtime Gateway & PEP** | Authenticates humans/agents, enforces runtime access decisions, terminates MCP sessions, and ensures agents never exceed delegated permissions. | *Specification / In Progress* |
-| **[Medusa](file:///Users/jc/Code/Argus/Medusa)** | **Simulation & Quarantine** | Pre-activation blast-radius simulator that evaluates access-graph impacts of proposed policy/agent changes before activation. | *Specification / In Progress* |
-| **[Aristotle](file:///Users/jc/Code/Argus/Aristotle)** | **Formal Policy Prover** | Uses SMT/SAT solvers (e.g., Z3) to formally prove policy consistency, detect contradictions, and flag unreachable rules. | *Specification / In Progress* |
+## Why file-based IAM is not enough
 
----
-
-## Key Invariants & Security Guarantees
-
-1. **True Physical Redaction (Never Visual Overlays):**
-   - PDFs undergo content stream and xref purges via PyMuPDF. Live selectable text and vector objects are irrevocably removed, not masked with superficial black rectangles.
-   - DOCX files undergo XML run replacements, table scrubbing, and core document property sanitization.
-2. **Immutable Content-Addressed Originals:**
-   - Raw source documents are stored strictly by their SHA-256 digest (`data/originals/<hash>.<ext>`) in append-only storage and are never modified in place.
-3. **Automated Post-Transformation Leak Verification:**
-   - Every generated view is independently re-parsed and scanned for candidate sensitive strings before delivery. If any candidate string remains detectable, the operation **fails closed**.
-4. **Zero Raw PII in Logs and Audit Manifests:**
-   - Findings, entity values, and subject IDs in audit manifests are recorded strictly as one-way SHA-256 cryptographic digests. Raw PII is never logged or exposed via public APIs.
-5. **Fail-Closed Safety Defaults:**
-   - Scanned or unparseable documents lacking selectable text fail closed. Ambiguous policy evaluations require explicit human compliance review.
-
----
-
-## RedactCore Document Processing Pipeline
+File IAM usually cannot express all of these at the point where an AI answer is assembled:
 
 ```text
-Upload (PDF/DOCX)
-   │
-   ├──► 1. Store Original (Immutable SHA-256 hash address)
-   │
-   ├──► 2. Normalized Parse (Text blocks, coordinate bounding boxes, tables, figures)
-   │
-   ├──► 3. Entity Detection (Deterministic Regex + Presidio NLP + Consent-gated LLM)
-   │
-   ├──► 4. Policy Evaluation (Subject role/clearance vs. YAML rules)
-   │
-   ├──► 5. Redaction Planning (Rule ordering: Redact > Replace > Mask > Allow)
-   │
-   ├──► 6. Transform Copy (Byte-level stream purge / DOCX run reconstruction)
-   │
-   ├──► 7. Leak Verification (Re-parse artifact & assert absence of sensitive strings)
-   │
-   └──► 8. Emit Output & Manifest (Derived view artifact + Zero-raw-PII audit trail)
+Allow order status but hide customer email.
+Allow a warehouse lead to see assigned records but not other customers.
+Allow an accountant to see this month's close data until the engagement ends.
+Allow a supplier to see its own records but not competing supplier prices.
+Allow an agent to use aggregated trends but not raw employee or customer rows.
 ```
 
----
+Argus turns these requirements into policy-governed views. The same source can produce different safe representations for a warehouse lead, marketing analyst, finance reviewer, external partner, or company-wide AI agent.
 
-## Repository Structure
+## Cross-department example: manufacturing quality incident
+
+A manufacturer asks:
+
+> What is causing this quality incident, and what should each department do next?
+
+The answer may require production batches, inspection results, machine maintenance, supplier lots, customer requirements, and service tickets.
+
+Argus can deliver different representations:
 
 ```text
-Argus/
-├── ArgusBC/             # Argus Business Center: Next.js control plane UI & dashboard
-│   ├── app/             # Next.js App Router (pages: dashboard, policies, documents, signin)
-│   ├── components/      # UI components & design system
-│   └── lib/             # Firebase Auth integration, mock providers, and API clients
-├── RedactCore/          # Authoritative document redaction & verification service
-│   ├── src/             # Core Python engine (parsers, entity detectors, transforms)
-│   ├── policies/        # Shipped YAML policy definitions
-│   ├── tests/           # Deterministic test suite & leak verification assertions
-│   └── fixtures/        # Sample PDFs, DOCX, and benchmark documents
-├── Cerberus/            # Specification for runtime AI/MCP gateway & PEP
-├── Medusa/              # Specification for policy change simulation & quarantine
-├── Aristotle/           # Specification for formal policy consistency proving
-├── DemoData/            # Realistic enterprise documents for demonstrations
-└── ARCHITECTURE.md      # Detailed system architecture and module boundaries
+Quality engineer:
+  defects, inspection evidence, and batch details
+
+Production manager:
+  line status, machine risk, and corrective actions
+
+Procurement:
+  supplier lot and delivery risk
+
+Account manager:
+  customer impact and delivery commitments
+
+External customer:
+  approved root-cause and corrective-action summary
+
+Company-wide agent:
+  aggregated risk, owner, and next steps
 ```
 
----
+Everyone works from the same incident context without receiving the same raw data.
 
-## Shipped Policies & Personas
+## System architecture
 
-Argus includes out-of-the-box policies demonstrated in `RedactCore/policies/`:
+```text
+Source connector / upload / Drive / internal system
+                         │
+                         ▼
+              Consent, scope, and ingestion job
+                         │
+                         ▼
+               Immutable source and metadata
+                         │
+                         ▼
+              RedactCore normalize and detect
+                         │
+                         ▼
+          Aristotle policy authoring and validation
+                         │
+                         ▼
+              Medusa impact simulation / review
+                         │
+                         ▼
+              Cerberus runtime enforcement point
+                         │
+                         ▼
+        RedactCore transformation / structured projection
+                         │
+                         ▼
+                 Verified derived data view
+                         │
+                         ▼
+              RAG index / human or AI delivery
+                         │
+                         ▼
+                 Answer, action, and audit event
+```
 
-| Policy | Target Persona | Rule Highlights | Figure Handling |
-| :--- | :--- | :--- | :--- |
-| **`sales-quarterly`** | Sales Representative | Redacts employee salaries, IDs, phone numbers, passwords, and API keys; masks emails and physical addresses. | Requires manual figure review |
-| **`finance-full-access`** | Finance Auditor | Allows salary, employee IDs, and names; redacts personal phone numbers; masks addresses. | Direct allow (no review required) |
-| **`reviewer`** | Compliance Officer | Flags salaries, phone numbers, and names for human review; masks employee IDs. | Requires manual figure review |
+### Module responsibilities
 
----
+| Module | Responsibility | Current status |
+|---|---|---|
+| **RedactCore** | Parse documents, detect candidates, transform PDF/DOCX/data views, verify outputs, and create manifests. | Implemented Python/FastAPI service. |
+| **Aristotle** | Author policies, create roles, simulate effects, draft policies from natural language, and export RedactCore-compatible policies. | MVP workbench; deterministic checks today. |
+| **Medusa** | Simulate policy, agent, connector, and resource changes; calculate impact; quarantine risky changes; manage review. | Specification / planned implementation. |
+| **Cerberus** | Authenticate principals, enforce runtime decisions, govern MCP/tool calls, and prevent agents exceeding delegated authority. | Specification / planned implementation. |
+| **ArgusBC** | Control-plane UI for organizations, workspaces, roles, policies, sources, views, agents, and audit activity. | Implemented control-plane foundation. |
 
-## Getting Started
+## Data ingress and verified-view workflow
 
-### 1. Running the RedactCore Backend
+Argus must distinguish these states:
 
-Requirements: Python 3.11+, [`uv`](https://github.com/astral-sh/uv) (recommended) or `pip`.
+```text
+DISCOVERED
+  ≠ CONSENTED
+  ≠ DOWNLOADED
+  ≠ STORED_IMMUTABLE
+  ≠ NORMALIZED
+  ≠ POLICY_EVALUATED
+  ≠ DERIVED
+  ≠ VERIFIED
+  ≠ INDEXED
+```
+
+A typical source flow is:
+
+```text
+Google Drive / upload / SharePoint / S3
+        ↓
+Connector and explicit consent scope
+        ↓
+File discovery and ingestion job
+        ↓
+Download bytes and calculate real SHA-256
+        ↓
+Store immutable original
+        ↓
+RedactCore parsing, OCR, and candidate detection
+        ↓
+Policy evaluation using principal, purpose, resource, and workspace
+        ↓
+Derived view: filter, mask, redact, replace, aggregate, review, or deny
+        ↓
+Independent leak and integrity verification
+        ↓
+Manifest and status update
+        ↓
+Safe derived view becomes eligible for RAG indexing
+```
+
+Only a verified derived view should become model context. The original is never silently replaced by a redacted copy.
+
+## RedactCore pipeline
+
+```text
+Upload PDF/DOCX/data
+   │
+   ├──► 1. Store immutable original by content SHA-256
+   ├──► 2. Normalize text, tables, figures, metadata, and OCR state
+   ├──► 3. Detect candidates with deterministic rules, optional NLP, and consent-gated LLM enrichment
+   ├──► 4. Evaluate policy against subject, role, purpose, resource, and classification
+   ├──► 5. Build ordered transformation plan
+   ├──► 6. Transform a copy using true PDF/DOCX/data operations
+   ├──► 7. Reopen and verify the derived artifact for leakage and integrity
+   └──► 8. Emit derived view, manifest, status, and audit event
+```
+
+An LLM may suggest OCR, classification, or candidate entities. It never independently authorizes access. Policy evaluation and post-transformation verification remain authoritative.
+
+## Security invariants
+
+1. **Policy before model context:** raw documents and tool responses do not reach an AI model before policy evaluation and transformation.
+2. **Detection is not authorization:** regex, OCR, NLP, and LLMs identify candidates; policies decide what may be delivered.
+3. **True redaction:** PDF content streams and DOCX content are transformed, not covered by visual black boxes.
+4. **Immutable originals:** source bytes remain unchanged and are addressable by SHA-256.
+5. **Fail closed:** missing identity, purpose, classification, OCR coverage, policy, or verification causes review or denial rather than silent allowance.
+6. **No raw PII in logs:** manifests and audit records use safe metadata and digests rather than raw sensitive values.
+7. **Least-privilege actions:** tools are allowlisted and write actions require explicit approval where risk warrants it.
+8. **Reviewable policy changes:** draft, validation, approval, activation, revocation, and rollback are distinct states.
+
+## ArgusBC organization and workspace model
+
+```text
+Organization
+├── subscription and seats
+├── members and invitations
+├── organization roles and permissions
+├── dedicated storage boundary
+├── Demo / Sandbox workspace
+├── Production workspace
+├── policies
+└── workspace-scoped AI agents
+```
+
+ArgusBC is intended to:
+
+- Connect and scope source systems.
+- Track ingestion and review states.
+- Author and compare policies.
+- Create roles and principals in the sandbox.
+- Inspect immutable sources and verified derived views.
+- Configure agent data scope and purposes.
+- Review policy decisions and audit events.
+
+Demo identities and local fallback data must remain clearly labeled. Production identity authority belongs to Cerberus and the enterprise identity provider.
+
+## Current policy examples
+
+Argus demonstrates policies including:
+
+| Policy | Example purpose | Representative controls |
+|---|---|---|
+| `sales-quarterly` | Sales reporting | Mask or redact employee/contact data while allowing approved business metrics. |
+| `finance-full-access` | Finance audit | Allow authorized finance fields while protecting unrelated personal contact data. |
+| `reviewer` | Compliance review | Route uncertain findings and figures to human review. |
+| Victor warehouse / marketing / company-wide agent policies | Cross-functional operations | Allow role-specific fields, mask identifiers, aggregate results, and block private notes or supplier-sensitive data. |
+
+## Getting started locally
+
+### RedactCore
 
 ```bash
 cd RedactCore
-
-# Install dependencies
 uv sync
-
-# Run the test suite (verifies parsers, transforms, and leak detection)
-uv run pytest
-
-# Start the FastAPI service (default: http://localhost:8000)
+uv run pytest -q
 uv run uvicorn redact_core.api:app --reload --port 8000
 ```
 
-### 2. Running the ArgusBC Control Plane UI
+Hosted API endpoints include:
 
-Requirements: Node.js 18.17+, npm 9+.
+```text
+GET  /healthz
+GET  /health
+GET  /api/policies
+GET  /api/subjects
+POST /api/upload
+POST /api/views
+GET  /api/views/{view_id}/manifest
+GET  /api/views/{view_id}/download
+```
+
+The hosted demo requires durable object storage, authenticated identity, signed URLs, and server-derived roles before it should be treated as production service.
+
+### Aristotle
+
+```bash
+cd Aristotle
+uv sync
+uv run pytest -q
+uv run aristotle validate-data
+uv run aristotle list-templates
+uv run aristotle serve --port 8787
+```
+
+Aristotle provides policy authoring, role/principal creation, deterministic sandbox simulation, RedactCore-compatible import/export, and optional natural-language policy drafting. Its sandbox identities are not production IAM.
+
+### ArgusBC
 
 ```bash
 cd ArgusBC
-
-# Install dependencies
 npm install
-
-# Run the smoke tests & typecheck
 npm test
 npm run typecheck
-
-# Start Next.js development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) (or the active port reported by Next.js) to inspect documents, compare subject policies, and generate verified views.
-
----
+The frontend can run with local/demo fallback data when the live RedactCore URL or Firebase configuration is unavailable. It must label that boundary honestly.
 
 ## Roadmap
 
-- [x] **RedactCore Pipeline**: Deterministic document parsing, PDF stream purging, DOCX transformation, and post-transform leak verification.
-- [x] **ArgusBC Control Plane**: High-density dashboard, multi-persona view simulator, policy matrix explorer, and Firebase Auth scaffolding.
-- [ ] **Cerberus MCP Gateway**: Model Context Protocol (MCP) server adapter intercepting LLM tool calls and streaming redacted payloads downstream.
-- [ ] **Medusa Blast-Radius Simulation**: Automated access-graph impact analysis for candidate policy updates.
-- [ ] **Aristotle Policy Prover**: Z3-backed SMT validation to eliminate unreachable and contradictory rules.
+- [x] RedactCore deterministic parsing, physical redaction, verification, audit manifests, and hosted API packaging.
+- [x] Aristotle policy-authoring and deterministic sandbox MVP.
+- [x] ArgusBC organization/workspace/control-plane foundation.
+- [ ] Complete backend ingestion jobs for Google Drive and other connectors.
+- [ ] Durable source/view/manifest storage and signed artifact URLs.
+- [ ] Connect ArgusBC source ingestion to live RedactCore upload/view APIs.
+- [ ] Safe-view extraction, chunking, embeddings, and workspace-scoped RAG index.
+- [ ] Cerberus authenticated MCP/tool gateway and delegated identity enforcement.
+- [ ] Medusa blast-radius simulation, quarantine, access review, and rollback.
+- [ ] Aristotle Z3/SMT policy consistency and counterexample analysis.
+- [ ] Production tenant isolation, observability, retention, revocation, and cost controls.
+
+## Product thesis
+
+> **RAG finds relevant information. Argus decides what the principal may receive. RedactCore creates the verified view. Cerberus enforces the decision at runtime.**
+
+Argus helps organizations give AI broader operational context without giving AI unrestricted access to raw company data.
+
+## Status and boundaries
+
+Argus is an actively developed prototype. RedactCore is the most mature executable subsystem; Aristotle, Cerberus, Medusa, ingestion, durable persistence, and production identity integration remain bounded development milestones rather than completed enterprise guarantees.
+
+Victor examples are synthetic demonstrations and must never be represented as real customer, employee, financial, or operational records.
+
+Never commit API keys, OAuth tokens, service-account credentials, `.env` files, Firebase deployment state, generated build caches, or temporary agent briefs. Verify external deployment claims with live health/API requests rather than relying on a tool summary.
+
+## Repository structure
+
+```text
+Argus/
+├── ArgusBC/             # Control-plane UI and organization/workspace foundation
+├── RedactCore/          # Authoritative document transformation and verification service
+├── Aristotle/           # Policy authoring and sandbox MVP
+├── Cerberus/            # Runtime AI/MCP gateway specification
+├── Medusa/              # Policy-change simulation specification
+├── DemoData/            # Synthetic Victor organization data
+├── Web/                 # Related web integration/submodule
+└── ARCHITECTURE.md      # Module boundaries and control flow
+```
+
+## Competition demo direction
+
+A small, credible competition demonstration should show one cross-department AI agent answering one operational question for three roles. The same synthetic sources should produce three different safe contexts, with visible policy decisions, transformations, citations, and an audit event. Planned Cerberus, Medusa, and formal Aristotle capabilities must be labelled as planned until independently implemented and verified.
+
+## Detailed references
+
+Implementation-specific commands and contracts remain in:
+
+- `ARCHITECTURE.md`
+- `RedactCore/README.md`
+- `Aristotle/README.md`
+- `Cerberus/README.md`
+- `Medusa/README.md`
+- `DemoData/Victor/README.md`
+
+## License
+
+MIT for current prototype code unless a subdirectory states otherwise.
