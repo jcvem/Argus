@@ -1,32 +1,205 @@
-# Aristotle
+# Aristotle API
 
-Formal policy analysis and consistency checking for Argus.
+Argus Aristotle provides declarative policy drafting and validation for the Argus data plane. It translates natural-language security and privacy requirements into RedactCore-compatible declarative policies.
 
-## Responsibility
+## Architectural Boundary
 
-Aristotle analyzes the organization-wide policy set before policies are activated. It should detect:
+Aristotle operates strictly as an authoring and drafting engine within the Argus control flow:
 
-- Contradictory allow/deny rules
-- Unreachable policies
-- Overlapping rules with ambiguous precedence
-- Separation-of-duties conflicts
-- Privilege escalation paths
-- Missing default-deny behavior
-- Inconsistent identity/resource attribute assumptions
-- Policies that cannot be satisfied by the available enforcement points
+```text
+Natural-language intent
+         ↓
+Aristotle policy draft (draft_only: true)
+         ↓
+Medusa blast-radius simulation & access review
+         ↓
+Human approval
+         ↓
+Cerberus runtime enforcement & RedactCore transformation
+```
 
-## Boundary
+### Prototype Limitations and Boundaries
+- **Draft-only artifact**: Output policies have `draft_only: true`. Aristotle never auto-activates, persists, or deploys policies.
+- **No runtime PDP or PEP**: Aristotle does not enforce access decisions or inspect live requests.
+- **No document processing**: Physical redaction, OCR, and document parsing remain the exclusive responsibility of RedactCore.
+- **Fail-closed provider invariant**: Natural-language drafting strictly uses Google Gemini Developer API via the official `google-genai` SDK and `GEMINI_API_KEY`. Missing credentials, upstream errors, or schema validation failures result in safe HTTP 503/502 errors and **never** fabricate fallback policies or switch providers.
+- **Strict allowlists**: Rules only produce canonical entity types (`SALARY`, `EMPLOYEE_ID`, `PHONE_NUMBER`, `EMAIL_ADDRESS`, `PERSON`, `ADDRESS`, `PASSWORD`, `SECRET_KEY`, `API_KEY`, `GENERAL`) and actions (`allow`, `redact`, `mask`, `replace`, `review`).
 
-Aristotle validates and explains policy behavior; it does not serve documents, transform content, or act as the runtime gateway.
+## Environment Configuration
 
-## Planned adapters
+Configure the service using environment variables:
 
-- Policy normalization from YAML/JSON
-- SMT/SAT checking, initially Z3
-- OPA/Rego or Cedar compatibility later
-- Counterexample generation for conflicting policies
-- CI/pre-activation policy checks
+| Variable | Description | Default | Required |
+|---|---|---|---|
+| `GEMINI_API_KEY` | Google Gemini Developer API key (server-side only) | None | Yes (for `/v1/policy/draft`) |
+| `ARISTOTLE_MODEL` | Gemini model name | `gemini-2.5-flash` | No |
+| `PORT` | Listening HTTP port | `8080` | No |
 
-## Status
+> [!IMPORTANT]
+> The `GEMINI_API_KEY` is server-side only and must never be committed to source control, included in client bundles, or logged.
 
-Placeholder module boundary. Implementation to follow.
+### Exporting Environment Variables Locally
+
+```bash
+export GEMINI_API_KEY="AIzaSy..."
+export ARISTOTLE_MODEL="gemini-2.5-flash"
+export PORT="8080"
+```
+
+## Local Development and Testing
+
+### Setup with `uv`
+
+Work with the existing Python/uv environment (no Conda required):
+
+```bash
+cd Aristotle
+uv pip install -e .
+```
+
+### Running Test Suite
+
+The test suite mocks Gemini API interactions deterministically and does not require a real API key:
+
+```bash
+uv run pytest -v
+```
+
+### Starting the Local Server
+
+```bash
+uv run uvicorn aristotle_api.main:app --host 0.0.0.0 --port 8080
+```
+
+## API Endpoints
+
+### 1. Health Check
+
+- **Method**: `GET`
+- **Path**: `/healthz`
+- **Auth**: None required (works even if `GEMINI_API_KEY` is unset)
+- **Response**: `200 OK`
+  ```json
+  {"status": "ok"}
+  ```
+
+#### Local Curl:
+```bash
+curl -s http://127.0.0.1:8080/healthz
+```
+
+### 2. Draft Policy
+
+- **Method**: `POST`
+- **Path**: `/v1/policy/draft`
+- **Request Body**:
+  ```json
+  {
+    "request": "Sales representative restricted view. Redact employee compensation and phone numbers, mask personal emails and physical addresses, and allow employee IDs.",
+    "policy_id": "sales-representative",
+    "policy_name": "Sales Representative View"
+  }
+  ```
+  - `request` (string, required): 1 to 8,000 characters. Blank or oversized strings return HTTP 400.
+  - `policy_id` (string, optional): Custom policy identifier slug.
+  - `policy_name` (string, optional): Human-readable policy name.
+
+- **Response Body**: `200 OK`
+  ```json
+  {
+    "policy": {
+      "policy_id": "sales-representative",
+      "name": "Sales Representative View",
+      "version": "1.0.0",
+      "description": "Restricted view policy for sales representatives",
+      "default_action": "allow",
+      "require_figure_review": true,
+      "allowed_subjects": {},
+      "rules": [
+        {
+          "entity_type": "SALARY",
+          "action": "redact",
+          "replacement": "[SALARY REDACTED]",
+          "mask_char": "*",
+          "description": "Compensation is confidential"
+        },
+        {
+          "entity_type": "PHONE_NUMBER",
+          "action": "redact",
+          "replacement": "[PHONE REDACTED]",
+          "mask_char": "*",
+          "description": "Direct telephone numbers redacted"
+        },
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "action": "mask",
+          "mask_char": "*",
+          "description": "Email addresses masked"
+        },
+        {
+          "entity_type": "ADDRESS",
+          "action": "mask",
+          "mask_char": "*",
+          "description": "Physical addresses masked"
+        },
+        {
+          "entity_type": "EMPLOYEE_ID",
+          "action": "allow",
+          "description": "Internal employee IDs allowed"
+        }
+      ]
+    },
+    "warnings": [
+      "This policy is an unverified draft generated by an AI model. It must be reviewed and tested before activation."
+    ],
+    "draft_only": true,
+    "model": "gemini-2.5-flash"
+  }
+  ```
+
+#### Local Curl:
+```bash
+curl -s -X POST http://127.0.0.1:8080/v1/policy/draft \
+  -H "Content-Type: application/json" \
+  -d '{
+    "request": "Sales representative restricted view. Redact employee compensation and phone numbers, mask personal emails and physical addresses, and allow employee IDs.",
+    "policy_id": "sales-representative",
+    "policy_name": "Sales Representative View"
+  }'
+```
+
+#### Error Responses:
+- **HTTP 400 Bad Request**: Empty or whitespace-only request, or request exceeding 8,000 characters.
+- **HTTP 503 Service Unavailable**: `GEMINI_API_KEY` is not configured in the server environment.
+- **HTTP 502 Bad Gateway**: Upstream Gemini API network error or model output failing schema validation.
+
+## Cloud Run Deployment Shape
+
+The service is packaged as a Cloud Run-compatible container running with a dedicated non-root user (`appuser`, UID 10001) and binding dynamically to `${PORT:-8080}`.
+
+### Container Build
+
+```bash
+docker build -t gcr.io/${PROJECT_ID}/aristotle-api:latest .
+```
+
+### Deploying to Cloud Run with Secret Manager
+
+Store `GEMINI_API_KEY` in Google Cloud Secret Manager and deploy to Cloud Run:
+
+```bash
+# 1. Create the secret in Secret Manager
+echo -n "${GEMINI_API_KEY}" | gcloud secrets create aristotle-gemini-key \
+  --data-file=- \
+  --replication-policy="automatic"
+
+# 2. Deploy service
+gcloud run deploy aristotle-api \
+  --image gcr.io/${PROJECT_ID}/aristotle-api:latest \
+  --platform managed \
+  --region us-central1 \
+  --port 8080 \
+  --set-env-vars ARISTOTLE_MODEL=gemini-2.5-flash \
+  --set-secrets GEMINI_API_KEY=aristotle-gemini-key:latest \
+  --no-allow-unauthenticated
+```
