@@ -130,6 +130,30 @@ function setupEventListeners() {
     const cont = document.getElementById("manifest-container");
     cont.classList.toggle("hidden");
   });
+
+  // Enterprise Search triggers
+  const btnSidebarSearch = document.getElementById("btn-sidebar-search");
+  if (btnSidebarSearch) {
+    btnSidebarSearch.addEventListener("click", () => {
+      const trigger = document.getElementById("searchWidgetTrigger");
+      if (trigger) {
+        trigger.click();
+        trigger.focus();
+      }
+    });
+  }
+
+  // Keyboard shortcut: Cmd+K / Ctrl+K to open search widget
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      const trigger = document.getElementById("searchWidgetTrigger");
+      if (trigger) {
+        trigger.click();
+        trigger.focus();
+      }
+    }
+  });
 }
 
 async function loadFixtureFile(filename) {

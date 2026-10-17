@@ -1,5 +1,6 @@
 import React from "react";
 import { HealthResponse } from "@/lib/types";
+import { api } from "@/lib/api";
 import {
   ShieldCheck,
   Cpu,
@@ -65,6 +66,15 @@ export function HealthCards({
             />
             <span className="text-gray-600">
               {isLive ? "FastAPI Daemon Active" : "Local Contract Emulation"}
+            </span>
+          </div>
+          <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] font-mono text-gray-500">
+            <span className="text-gray-400">Endpoint:</span>
+            <span
+              className="truncate max-w-[170px] text-zinc-700 font-medium"
+              title={api.getBaseUrl()}
+            >
+              {api.getBaseUrl().replace(/^https?:\/\//, "")}
             </span>
           </div>
         </div>

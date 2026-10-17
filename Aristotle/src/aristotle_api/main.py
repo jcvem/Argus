@@ -6,6 +6,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from aristotle_api.models import DraftPolicyRequest, DraftPolicyResponse
@@ -27,6 +28,24 @@ app = FastAPI(
     title="Argus Aristotle Policy Drafting API",
     version="0.1.0",
     description="Declarative RedactCore policy drafting using Google Gemini Developer API",
+)
+
+# CORS configuration allowing ArgusBC and local workbenches
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://argus-guardian.web.app",
+        "https://argus-guardian.firebaseapp.com",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "http://localhost:8787",
+        "http://127.0.0.1:8787",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -54,10 +73,12 @@ def get_provider() -> PolicyDraftProvider:
     return GeminiPolicyProvider(api_key=api_key.strip(), model=model)
 
 
+@app.get("/", status_code=status.HTTP_200_OK)
+@app.get("/health", status_code=status.HTTP_200_OK)
 @app.get("/healthz", status_code=status.HTTP_200_OK)
 async def healthz() -> dict[str, str]:
     """Health check endpoint. Always returns status ok without requiring GEMINI_API_KEY."""
-    return {"status": "ok"}
+    return {"status": "ok", "service": "aristotle-api", "version": "0.1.0"}
 
 
 @app.post("/v1/policy/draft", response_model=DraftPolicyResponse, status_code=status.HTTP_200_OK)

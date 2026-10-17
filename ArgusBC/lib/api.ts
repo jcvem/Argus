@@ -5,10 +5,15 @@ import {
   DemoSubject,
   DemoDocumentRecord,
   EntityFindingSummary,
+  AristotleDraftResponse,
 } from "./types";
 
 const REDACTCORE_BASE_URL =
   process.env.NEXT_PUBLIC_REDACTCORE_API_URL?.trim() || "http://localhost:8000";
+
+const ARISTOTLE_BASE_URL =
+  process.env.NEXT_PUBLIC_ARISTOTLE_API_URL?.trim() ||
+  "https://aristotle-api-774324846823.asia-east1.run.app";
 
 /**
  * Pre-loaded canonical policies matching RedactCore/policies/*.yaml
@@ -310,10 +315,14 @@ export function formatDigest(hash: string, prefixLen = 8, suffixLen = 6): string
  * RedactCore API client interface.
  */
 export class RedactCoreClient {
-  private baseUrl: string;
+  public readonly baseUrl: string;
 
   constructor(baseUrl: string = REDACTCORE_BASE_URL) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl;
   }
 
   async checkHealth(): Promise<{ live: boolean; data: HealthResponse }> {
@@ -409,6 +418,94 @@ export class RedactCoreClient {
 }
 
 export const api = new RedactCoreClient();
+
+/**
+ * Aristotle Policy Drafting API client interface.
+ */
+export class AristotleClient {
+  public readonly baseUrl: string;
+
+  constructor(baseUrl: string = ARISTOTLE_BASE_URL) {
+    this.baseUrl = baseUrl.replace(/\/+$/, "");
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  async checkHealth(): Promise<{ live: boolean }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/health`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      return { live: res.ok };
+    } catch {
+      return { live: false };
+    }
+  }
+
+  async draftPolicy(
+    requestText: string,
+    policyId?: string,
+    policyName?: string
+  ): Promise<{ live: boolean; data: AristotleDraftResponse }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/v1/policy/draft`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          request: requestText,
+          policy_id: policyId || undefined,
+          policy_name: policyName || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Aristotle API error: HTTP ${res.status}`);
+      }
+
+      const data = (await res.json()) as AristotleDraftResponse;
+      return { live: true, data };
+    } catch (err) {
+      console.warn("Aristotle API unreachable, falling back to deterministic draft:", err);
+      const local = translateDraftPrompt(requestText);
+      const fallbackPolicy: RedactionPolicy = {
+        policy_id: policyId || "draft_local_policy",
+        name: policyName || "Local Fallback Draft Policy",
+        version: "1.0.0",
+        description: `Draft policy derived from: "${requestText.slice(0, 80)}..."`,
+        default_action: "review",
+        require_figure_review: true,
+        rules: local.draftRules.map((r) => ({
+          entity_type: r.entity_type,
+          action: (r.suggested_action as any) || "redact",
+          replacement: r.suggested_action === "redact" ? `[${r.entity_type} REDACTED]` : null,
+          mask_char: "*",
+          description: r.reason,
+        })),
+      };
+
+      return {
+        live: false,
+        data: {
+          policy: fallbackPolicy,
+          warnings: [
+            "Aristotle Cloud API was unreachable. Showing deterministic local fallback mapping.",
+          ],
+          draft_only: true,
+          model: "deterministic-local-fallback",
+        },
+      };
+    }
+  }
+}
+
+export const aristotleApi = new AristotleClient();
 
 /**
  * Deterministic natural-language draft mapper as specified in implementation.md Section 2 (Screen 3).

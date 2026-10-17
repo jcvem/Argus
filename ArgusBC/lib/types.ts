@@ -112,6 +112,13 @@ export interface RedactionPolicy {
   rules: PolicyRule[];
 }
 
+export interface AristotleDraftResponse {
+  policy: RedactionPolicy;
+  warnings: string[];
+  draft_only: boolean;
+  model: string;
+}
+
 export interface PolicySummary {
   policy_id: string;
   name: string;

@@ -96,6 +96,104 @@ body {
   background: #f1f5f9;
   padding: 0.4rem 0.8rem;
   border-radius: 9999px;
+  white-space: nowrap;
+}
+
+/* Header Search Trigger */
+.header-search {
+  flex: 1;
+  max-width: 480px;
+  margin: 0 1.5rem;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.9rem;
+  font-size: 0.95rem;
+  line-height: 1;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.header-search-input {
+  width: 100%;
+  padding: 0.55rem 8.5rem 0.55rem 2.4rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--text);
+  background: #f1f5f9;
+  border: 1.5px solid var(--border);
+  border-radius: 9999px;
+  outline: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.header-search-input:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.header-search-input:focus {
+  background: #ffffff;
+  border-color: var(--primary-light);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.header-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.search-badges {
+  position: absolute;
+  right: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  pointer-events: none;
+}
+
+.search-kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #64748b;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+}
+
+.search-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #1d4ed8;
+  background: #dbeafe;
+  border: 1px solid #bfdbfe;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.enterprise-search-box {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: var(--radius);
+  padding: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.enterprise-search-box .field-desc {
+  margin-bottom: 0.6rem;
 }
 
 .dot {
@@ -449,3 +547,20 @@ body {
 .hidden {
   display: none !important;
 }
+
+@media (max-width: 960px) {
+  .header-content {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .header-search {
+    order: 3;
+    max-width: 100%;
+    margin: 0;
+    width: 100%;
+  }
+  .main-content {
+    grid-template-columns: 1fr;
+  }
+}
+
