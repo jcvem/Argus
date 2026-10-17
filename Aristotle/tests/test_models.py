@@ -165,3 +165,31 @@ def test_redactcore_yaml_policies_compatibility():
         policy = RedactionPolicy.model_validate(data)
         assert policy.policy_id
         assert len(policy.rules) > 0
+
+
+def test_draft_policy_schema_gemini_compatibility():
+    """Verify DraftPolicySchema converts cleanly to Gemini API schema without additionalProperties."""
+    from google import genai
+    from google.genai._transformers import t_schema
+    from aristotle_api.models import DraftPolicyRule, DraftPolicySchema
+
+    client = genai.Client(api_key="AIzaSyDummyKeyForTestingSchemaTransform")
+    gemini_schema = t_schema(client._api_client, DraftPolicySchema)
+    assert gemini_schema is not None
+
+    # Test conversion to full RedactionPolicy
+    draft = DraftPolicySchema(
+        policy_id="test-draft",
+        name="Test Draft",
+        rules=[
+            DraftPolicyRule(entity_type="SALARY", action="redact"),
+            DraftPolicyRule(entity_type="EMAIL_ADDRESS", action="mask", mask_char="#"),
+        ],
+    )
+    redaction_policy = draft.to_redaction_policy()
+    assert isinstance(redaction_policy, RedactionPolicy)
+    assert redaction_policy.policy_id == "test-draft"
+    assert len(redaction_policy.rules) == 2
+    assert redaction_policy.rules[0].entity_type == "SALARY"
+    assert redaction_policy.rules[0].action == "redact"
+    assert redaction_policy.rules[1].mask_char == "#"

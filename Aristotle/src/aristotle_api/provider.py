@@ -6,6 +6,7 @@ from google import genai
 from google.genai import types
 
 from aristotle_api.models import (
+    DraftPolicySchema,
     RedactionPolicy,
     normalize_and_dedupe_rules,
 )
@@ -64,7 +65,7 @@ class GeminiPolicyProvider:
         config = types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
             response_mime_type="application/json",
-            response_schema=RedactionPolicy,
+            response_schema=DraftPolicySchema,
             temperature=0.0,
         )
 
@@ -76,7 +77,7 @@ class GeminiPolicyProvider:
             )
         except Exception as exc:
             # Strictly avoid logging raw request_text or API key
-            logger.error("Upstream Gemini API call failed: %s", type(exc).__name__)
+            logger.error("Upstream Gemini API call failed: %s (%s)", type(exc).__name__, exc)
             raise UpstreamProviderError("Gemini API call failed") from exc
 
         # Parse and validate response
@@ -94,24 +95,34 @@ class GeminiPolicyProvider:
             clean_text = clean_text.strip()
 
             try:
-                raw_policy = RedactionPolicy.model_validate_json(clean_text)
-            except Exception as exc:
-                logger.error("Failed to validate JSON model output: %s", type(exc).__name__)
-                raise PolicySchemaValidationError(
-                    "Model output failed RedactCore policy schema validation"
-                ) from exc
-        elif hasattr(response, "parsed") and response.parsed is not None:
-            parsed = response.parsed
-            if isinstance(parsed, RedactionPolicy):
-                raw_policy = parsed
-            else:
+                draft_policy_obj = DraftPolicySchema.model_validate_json(clean_text)
+                raw_policy = draft_policy_obj.to_redaction_policy()
+            except Exception:
                 try:
-                    raw_policy = RedactionPolicy.model_validate(parsed)
+                    raw_policy = RedactionPolicy.model_validate_json(clean_text)
                 except Exception as exc:
-                    logger.error("Failed to validate parsed model output: %s", type(exc).__name__)
+                    logger.error("Failed to validate JSON model output: %s", type(exc).__name__)
                     raise PolicySchemaValidationError(
                         "Model output failed RedactCore policy schema validation"
                     ) from exc
+        elif hasattr(response, "parsed") and response.parsed is not None:
+            parsed = response.parsed
+            if isinstance(parsed, DraftPolicySchema):
+                raw_policy = parsed.to_redaction_policy()
+            elif isinstance(parsed, RedactionPolicy):
+                raw_policy = parsed
+            else:
+                try:
+                    draft_policy_obj = DraftPolicySchema.model_validate(parsed)
+                    raw_policy = draft_policy_obj.to_redaction_policy()
+                except Exception:
+                    try:
+                        raw_policy = RedactionPolicy.model_validate(parsed)
+                    except Exception as exc:
+                        logger.error("Failed to validate parsed model output: %s", type(exc).__name__)
+                        raise PolicySchemaValidationError(
+                            "Model output failed RedactCore policy schema validation"
+                        ) from exc
         else:
             logger.error("Gemini returned empty or unparseable response")
             raise PolicySchemaValidationError("Upstream model returned empty or missing response")

@@ -122,6 +122,51 @@ class RedactionPolicy(BaseModel):
         raise ValueError("Invalid default_action. Allowed values: allow, review, redact")
 
 
+class DraftPolicyRule(BaseModel):
+    """Declarative rule drafted by LLM without freeform dicts for Gemini schema compatibility."""
+    model_config = ConfigDict(extra="ignore")
+
+    entity_type: EntityType
+    action: ActionType
+    replacement: str | None = None
+    mask_char: str = "*"
+    description: str | None = None
+
+
+class DraftPolicySchema(BaseModel):
+    """Schema for LLM structured output, strictly avoiding additionalProperties for Gemini Developer API."""
+    model_config = ConfigDict(extra="ignore")
+
+    policy_id: str = "draft-policy"
+    name: str = ""
+    version: str = "1.0.0"
+    description: str = ""
+    default_action: str = "allow"
+    require_figure_review: bool = False
+    rules: list[DraftPolicyRule] = Field(default_factory=list)
+
+    def to_redaction_policy(self) -> RedactionPolicy:
+        converted_rules = [
+            PolicyRule(
+                entity_type=r.entity_type,
+                action=r.action,
+                replacement=r.replacement,
+                mask_char=r.mask_char,
+                description=r.description,
+            )
+            for r in self.rules
+        ]
+        return RedactionPolicy(
+            policy_id=self.policy_id,
+            name=self.name,
+            version=self.version,
+            description=self.description,
+            default_action=self.default_action,
+            require_figure_review=self.require_figure_review,
+            rules=converted_rules,
+        )
+
+
 def normalize_and_dedupe_rules(raw_rules: list[PolicyRule]) -> tuple[list[PolicyRule], list[str]]:
     """Deterministically deduplicate and normalize policy rules.
 
