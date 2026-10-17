@@ -217,6 +217,11 @@ def get_health() -> dict[str, Any]:
             "durable object storage (e.g., Google Cloud Storage) and database persistence."
             if is_ephemeral else None
         ),
+        "storage_metadata": (
+            default_store.get_storage_metadata()
+            if hasattr(default_store, "get_storage_metadata")
+            else None
+        ),
         "policies": [p.policy_id for p in policies],
         "presidio": {
             "active": default_detector.presidio_available,
@@ -437,6 +442,55 @@ def download_derived_view(view_id: str) -> FileResponse:
         media_type=media_type,
         filename=f"derived_{safe_id}.{ext}",
     )
+
+
+@app.get("/api/views/{view_id}/signed-url")
+def get_view_signed_url(
+    view_id: str,
+    role: str | None = None,
+    agent: bool = False,
+) -> dict[str, Any]:
+    """Generates a direct V4 signed URL for zero-intermediary streaming.
+    
+    TTL: 30 minutes for human inspection, 10 minutes for AI agent context ingestion.
+    """
+    safe_id = validate_view_id(view_id)
+    manifest = default_store.get_manifest(safe_id)
+    if not manifest:
+        raise HTTPException(status_code=404, detail=f"View '{safe_id}' not found")
+
+    ext = manifest.output_format
+    if hasattr(default_store, "generate_signed_url"):
+        return default_store.generate_signed_url(safe_id, ext, role_id=role, is_agent=agent)
+
+    ttl_minutes = 10 if agent else 30
+    return {
+        "view_id": safe_id,
+        "signed_url": f"/api/views/{safe_id}/download",
+        "expires_in_seconds": ttl_minutes * 60,
+        "ttl_minutes": ttl_minutes,
+        "target_object": f"views/{safe_id}.{ext}",
+        "bucket": "local-filesystem",
+        "is_agent": agent,
+    }
+
+
+@app.get("/api/storage/info")
+def get_storage_info() -> dict[str, Any]:
+    """Exposes cloud storage enclave telemetry, bucket namespace, and WORM retention settings."""
+    if hasattr(default_store, "get_storage_metadata"):
+        return default_store.get_storage_metadata()
+    return {
+        "backend": "filesystem",
+        "bucket_name": "local-filesystem",
+        "tenant_prefix": None,
+        "worm_retention_days": 365,
+        "connected": True,
+        "cache_dir": str(getattr(default_store, "root_dir", "")),
+        "human_ttl_minutes": 30,
+        "agent_ttl_minutes": 10,
+    }
+
 
 
 @app.get("/api/views/{view_id}/preview")

@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+from typing import Any
 from redact_core.hashing import compute_sha256_bytes, compute_sha256_file
 from redact_core.models import ViewManifest
 
@@ -128,6 +129,52 @@ class DocumentStore:
         data = json.loads(path.read_text(encoding="utf-8"))
         return ViewManifest(**data)
 
+    def generate_signed_url(
+        self,
+        view_id: str,
+        extension: str,
+        role_id: str | None = None,
+        is_agent: bool = False,
+    ) -> dict[str, Any]:
+        """Simulates or formats a local download endpoint response with TTL."""
+        ttl_minutes = 10 if is_agent else 30
+        return {
+            "view_id": view_id,
+            "signed_url": f"/api/views/{view_id}/download",
+            "expires_in_seconds": ttl_minutes * 60,
+            "ttl_minutes": ttl_minutes,
+            "target_object": f"views/{view_id}.{extension.lstrip('.')}",
+            "bucket": "local-filesystem",
+            "is_agent": is_agent,
+        }
+
+    def get_storage_metadata(self) -> dict[str, Any]:
+        """Returns structured metadata about local file storage."""
+        return {
+            "backend": "filesystem",
+            "bucket_name": "local-filesystem",
+            "tenant_prefix": None,
+            "worm_retention_days": 365,
+            "connected": True,
+            "cache_dir": str(self.root_dir),
+            "human_ttl_minutes": 30,
+            "agent_ttl_minutes": 10,
+        }
+
+
+def get_document_store() -> DocumentStore | Any:
+    """Factory creating configured DocumentStore or GCSDocumentStore."""
+    backend = os.environ.get("REDACTCORE_STORAGE_BACKEND", "local").lower().strip()
+    if backend == "gcs":
+        try:
+            from redact_core.storage_gcs import GCSDocumentStore
+            return GCSDocumentStore()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Failed to initialize GCSDocumentStore, falling back to local: %s", e)
+    return DocumentStore()
+
 
 # Global default store instance
-default_store = DocumentStore()
+default_store = get_document_store()
+

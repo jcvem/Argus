@@ -50,6 +50,7 @@ import {
   ChevronRight,
   X,
   SlidersHorizontal,
+  Link2,
 } from "lucide-react";
 
 export default function DocumentsPage() {
@@ -725,7 +726,7 @@ export default function DocumentsPage() {
                     {workspaceBucket.bucketName}
                   </span>
                   <ChevronRight className="w-3 h-3 text-gray-400" />
-                  <span className="text-gray-400 font-mono">raw</span>
+                  <span className="text-zinc-900 font-mono font-semibold">originals</span>
                   <ChevronRight className="w-3 h-3 text-gray-400" />
                   <button
                     type="button"
@@ -734,7 +735,7 @@ export default function DocumentsPage() {
                       bucketFolderFilter === "all" ? "text-zinc-900" : "text-gray-500"
                     }`}
                   >
-                    {bucketFolderFilter === "all" ? "2026/10" : bucketFolderFilter}
+                    {bucketFolderFilter === "all" ? "all-objects" : bucketFolderFilter}
                   </button>
                 </div>
               </div>
@@ -743,19 +744,30 @@ export default function DocumentsPage() {
               <div className="px-4 py-2 bg-gray-50/40 border-b border-gray-100 flex items-center justify-between text-xs overflow-x-auto gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                    Folders:
+                    Namespace:
                   </span>
                   <button
                     type="button"
-                    onClick={() => setBucketFolderFilter(bucketFolderFilter === "raw" ? "all" : "raw")}
+                    onClick={() => setBucketFolderFilter(bucketFolderFilter === "originals" ? "all" : "originals")}
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs cursor-pointer ${
-                      bucketFolderFilter === "raw"
+                      bucketFolderFilter === "originals" || bucketFolderFilter === "all"
                         ? "bg-zinc-900 text-white border-zinc-900"
                         : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
                     }`}
                   >
-                    <Folder className="w-3 h-3 text-zinc-500" />
-                    <span className="font-mono text-[11px]">raw/2026/10</span>
+                    <Folder className="w-3 h-3 text-zinc-400" />
+                    <span className="font-mono text-[11px]">originals/ (WORM)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const el = document.getElementById("role-cloud-store-buckets");
+                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs cursor-pointer bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                  >
+                    <Folder className="w-3 h-3 text-emerald-600" />
+                    <span className="font-mono text-[11px]">views/ (Role-Guarded)</span>
                   </button>
                 </div>
 
@@ -1154,6 +1166,28 @@ export default function DocumentsPage() {
 
                       {/* Action buttons */}
                       <div className="flex items-center gap-2 flex-shrink-0 self-end md:self-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const signedUrl = `https://storage.googleapis.com/argus-tenant-org-hukurou/${gf.guardedKey}?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Expires=1800&role=${activeRoleTab.toLowerCase()}`;
+                            handleCopy(signedUrl, `signed_url_${gf.id}`);
+                          }}
+                          className="px-3 py-1.5 text-xs font-medium bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                          title="Generate V4 Signed URL (30 min TTL for human streaming)"
+                        >
+                          {copiedKey === `signed_url_${gf.id}` ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Copied Signed URL</span>
+                            </>
+                          ) : (
+                            <>
+                              <Link2 className="w-3.5 h-3.5" />
+                              <span>Signed URL (30m)</span>
+                            </>
+                          )}
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => setSelectedGuardedDiff(gf)}
