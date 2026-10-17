@@ -21,6 +21,236 @@ const ARISTOTLE_BASE_URL =
  */
 export const LOCAL_POLICIES: RedactionPolicy[] = [
   {
+    policy_id: "engineering-internal-strict",
+    name: "Engineering Internal Strict Access",
+    version: "1.0.0",
+    description:
+      "Restricted to Developer role. Redacts executive compensation and employee IDs; masks emails and contact data; retains internal technical IP and endpoints.",
+    default_action: "allow",
+    require_figure_review: true,
+    rules: [
+      {
+        entity_type: "SALARY",
+        action: "redact",
+        replacement: "[SALARY REDACTED]",
+        description: "Compensation and payroll data is confidential",
+      },
+      {
+        entity_type: "EMPLOYEE_ID",
+        action: "redact",
+        replacement: "[ID REDACTED]",
+        description: "Internal staff IDs are hidden",
+      },
+      {
+        entity_type: "PHONE_NUMBER",
+        action: "redact",
+        replacement: "[PHONE REDACTED]",
+        description: "Personal contact numbers redacted",
+      },
+      {
+        entity_type: "EMAIL_ADDRESS",
+        action: "mask",
+        mask_char: "*",
+        description: "Personal email addresses masked",
+      },
+      {
+        entity_type: "PASSWORD",
+        action: "redact",
+        replacement: "[PASSWORD REDACTED]",
+        description: "Passwords and login credentials strictly prohibited",
+      },
+      {
+        entity_type: "SECRET_KEY",
+        action: "redact",
+        replacement: "[SECRET REDACTED]",
+        description: "Production keys and cloud secrets redacted",
+      },
+      {
+        entity_type: "API_KEY",
+        action: "redact",
+        replacement: "[API KEY REDACTED]",
+        description: "API keys redacted",
+      },
+    ],
+  },
+  {
+    policy_id: "creative-partner-minimal",
+    name: "Creative UI / Layout Inspection View",
+    version: "1.0.0",
+    description:
+      "Designer role policy. Preserves visual typography, document geometry, and table structure while replacing names with layout labels and stripping compensation.",
+    default_action: "allow",
+    require_figure_review: false,
+    rules: [
+      {
+        entity_type: "SALARY",
+        action: "redact",
+        replacement: "[COMPENSATION REDACTED]",
+        description: "Financial balances and compensation stripped",
+      },
+      {
+        entity_type: "EMPLOYEE_ID",
+        action: "redact",
+        replacement: "[EMP-ID-PREVIEW]",
+        description: "Staff identifiers sanitized for layout preview",
+      },
+      {
+        entity_type: "PERSON",
+        action: "replace",
+        replacement: "[DESIGN SAMPLE NAME]",
+        description: "Employee names replaced with layout dummy labels",
+      },
+      {
+        entity_type: "PHONE_NUMBER",
+        action: "redact",
+        replacement: "[PHONE REDACTED]",
+        description: "Direct contact numbers stripped",
+      },
+      {
+        entity_type: "EMAIL_ADDRESS",
+        action: "mask",
+        mask_char: "*",
+        description: "Email addresses masked",
+      },
+      {
+        entity_type: "PASSWORD",
+        action: "redact",
+        replacement: "[CREDENTIAL REDACTED]",
+        description: "Sensitive credentials removed",
+      },
+      {
+        entity_type: "SECRET_KEY",
+        action: "redact",
+        replacement: "[SECRET REDACTED]",
+        description: "Secrets removed",
+      },
+      {
+        entity_type: "API_KEY",
+        action: "redact",
+        replacement: "[API KEY REDACTED]",
+        description: "API keys removed",
+      },
+    ],
+  },
+  {
+    policy_id: "thirdparty-vendor-restricted",
+    name: "Third-Party External Partner Boundary",
+    version: "1.0.0",
+    description:
+      "External Partner boundary policy. Enforces full blackout redaction on executive compensation, staff identities, credentials, and customer contact data.",
+    default_action: "review",
+    require_figure_review: true,
+    rules: [
+      {
+        entity_type: "SALARY",
+        action: "redact",
+        replacement: "[BLACKOUT: SALARY]",
+        description: "Full blackout of executive compensation",
+      },
+      {
+        entity_type: "EMPLOYEE_ID",
+        action: "redact",
+        replacement: "[BLACKOUT: ID]",
+        description: "Full blackout of employee IDs",
+      },
+      {
+        entity_type: "PERSON",
+        action: "redact",
+        replacement: "[BLACKOUT: PERSON]",
+        description: "Full blackout of internal personnel names",
+      },
+      {
+        entity_type: "PHONE_NUMBER",
+        action: "redact",
+        replacement: "[BLACKOUT: CONTACT]",
+        description: "Full blackout of direct phone numbers",
+      },
+      {
+        entity_type: "EMAIL_ADDRESS",
+        action: "redact",
+        replacement: "[BLACKOUT: EMAIL]",
+        description: "Full blackout of direct email addresses",
+      },
+      {
+        entity_type: "ADDRESS",
+        action: "redact",
+        replacement: "[BLACKOUT: ADDRESS]",
+        description: "Full blackout of physical addresses",
+      },
+      {
+        entity_type: "PASSWORD",
+        action: "redact",
+        replacement: "[BLACKOUT: CREDENTIAL]",
+        description: "Credentials strictly confidential",
+      },
+      {
+        entity_type: "SECRET_KEY",
+        action: "redact",
+        replacement: "[BLACKOUT: SECRET]",
+        description: "Secrets strictly confidential",
+      },
+      {
+        entity_type: "API_KEY",
+        action: "redact",
+        replacement: "[BLACKOUT: API_KEY]",
+        description: "API keys strictly confidential",
+      },
+    ],
+  },
+  {
+    policy_id: "public-relations-safe",
+    name: "Public Relations & Marketing Safe Release",
+    version: "1.0.0",
+    description:
+      "Marketing role policy. Safe for external campaigns and public domain release. Redacts individual salaries and employee IDs; masks emails and contact data.",
+    default_action: "allow",
+    require_figure_review: false,
+    rules: [
+      {
+        entity_type: "SALARY",
+        action: "redact",
+        replacement: "[SALARY REDACTED]",
+        description: "Granular salary metrics redacted for public release",
+      },
+      {
+        entity_type: "EMPLOYEE_ID",
+        action: "redact",
+        replacement: "[STAFF ID REDACTED]",
+        description: "Internal employee IDs redacted",
+      },
+      {
+        entity_type: "PHONE_NUMBER",
+        action: "mask",
+        mask_char: "*",
+        description: "Direct phone numbers masked",
+      },
+      {
+        entity_type: "EMAIL_ADDRESS",
+        action: "mask",
+        mask_char: "*",
+        description: "Personal emails masked with domain retained",
+      },
+      {
+        entity_type: "PASSWORD",
+        action: "redact",
+        replacement: "[CREDENTIAL REDACTED]",
+        description: "Credentials strictly confidential",
+      },
+      {
+        entity_type: "SECRET_KEY",
+        action: "redact",
+        replacement: "[SECRET REDACTED]",
+        description: "Secrets strictly confidential",
+      },
+      {
+        entity_type: "API_KEY",
+        action: "redact",
+        replacement: "[API KEY REDACTED]",
+        description: "API keys strictly confidential",
+      },
+    ],
+  },
+  {
     policy_id: "sales-quarterly",
     name: "Sales Quarterly Restricted View",
     version: "1.0.0",
@@ -168,6 +398,34 @@ export const LOCAL_POLICIES: RedactionPolicy[] = [
 ];
 
 export const DEMO_SUBJECTS: DemoSubject[] = [
+  {
+    subject_id: "demo_developer",
+    name: "Developer (Engineering Team)",
+    roles: ["developer", "engineering"],
+    clearance: "internal",
+    description: "Engineering strict access: compensation and personal IDs redacted; internal technical specs and CIDRs retained.",
+  },
+  {
+    subject_id: "demo_designer",
+    name: "Designer (UI/UX Team)",
+    roles: ["designer", "creative"],
+    clearance: "creative",
+    description: "Layout inspection: visual typography and geometry preserved; employee names replaced with layout dummy labels.",
+  },
+  {
+    subject_id: "demo_partner",
+    name: "External Partner (Federated Vendor)",
+    roles: ["partner", "vendor"],
+    clearance: "restricted",
+    description: "Third-party boundary: complete blackout of executive compensation, names, project codes, and contact data.",
+  },
+  {
+    subject_id: "demo_marketing",
+    name: "Marketing Specialist (Public Relations)",
+    roles: ["marketing", "public_relations"],
+    clearance: "public",
+    description: "Public-safe release: compensation and employee IDs redacted, contact info masked, broad metrics allowed.",
+  },
   {
     subject_id: "demo_sales_viewer",
     name: "Sales Representative (Standard)",

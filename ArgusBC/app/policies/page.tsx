@@ -40,7 +40,7 @@ export default function PoliciesPage() {
 
   // Aristotle Natural Language drafting state
   const [promptInput, setPromptInput] = useState(
-    "Redact executive salary and employee IDs, mask email addresses, and send personal telephone numbers to compliance review for sales viewers."
+    "Redact executive salary and staff IDs, mask personal emails, and retain technical IP for internal developers."
   );
   const [isDrafting, setIsDrafting] = useState(false);
   const [aristotleLive, setAristotleLive] = useState(true);
@@ -85,7 +85,7 @@ export default function PoliciesPage() {
     loadData();
     // Initial draft generation with Aristotle
     handleDraftPolicy(
-      "Redact executive salary and employee IDs, mask email addresses, and send personal telephone numbers to compliance review for sales viewers."
+      "Redact executive salary and staff IDs, mask personal emails, and retain technical IP for internal developers."
     );
   }, []);
 
@@ -246,35 +246,46 @@ export default function PoliciesPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      const p = "Redact executive salary and staff IDs, mask customer email addresses, and redact direct telephone numbers for general sales.";
+                      const p = "Redact executive salary and staff IDs, mask personal emails, and redact direct telephone numbers for internal developers.";
                       setPromptInput(p);
                       handleDraftPolicy(p);
                     }}
                     className="px-2.5 py-1 border border-gray-200 bg-white hover:bg-gray-50 hover:border-zinc-300 rounded-lg text-[11px] text-gray-700 transition-colors shadow-2xs"
                   >
-                    Sales PII Lockdown
+                    Developer Strict
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      const p = "Allow employee salaries and staff IDs for finance auditors, mask telephone numbers, and allow company email addresses.";
+                      const p = "Preserve tables and visual layouts, strip compensation data, replace employee names with design layout placeholders, and mask emails for designers.";
                       setPromptInput(p);
                       handleDraftPolicy(p);
                     }}
                     className="px-2.5 py-1 border border-gray-200 bg-white hover:bg-gray-50 hover:border-zinc-300 rounded-lg text-[11px] text-gray-700 transition-colors shadow-2xs"
                   >
-                    Finance Audit Clearance
+                    Designer Layout
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      const p = "Allow machine telemetry, batch IDs, and defect inspection reports, mask employee contact details, and route unverified figures to compliance review.";
+                      const p = "Full blackout redaction: Blackout compensation, employee names, staff IDs, and customer contacts for external partners.";
                       setPromptInput(p);
                       handleDraftPolicy(p);
                     }}
                     className="px-2.5 py-1 border border-gray-200 bg-white hover:bg-gray-50 hover:border-zinc-300 rounded-lg text-[11px] text-gray-700 transition-colors shadow-2xs"
                   >
-                    Incident Response (Victor Demo)
+                    Partner Boundary
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p = "Redact granular executive salaries and employee IDs, mask phone numbers and emails for public relations marketing release.";
+                      setPromptInput(p);
+                      handleDraftPolicy(p);
+                    }}
+                    className="px-2.5 py-1 border border-gray-200 bg-white hover:bg-gray-50 hover:border-zinc-300 rounded-lg text-[11px] text-gray-700 transition-colors shadow-2xs"
+                  >
+                    Marketing Public
                   </button>
                 </div>
 

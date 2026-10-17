@@ -11,10 +11,10 @@ interface PolicyRuleTableProps {
 
 export function PolicyRuleTable({ policies, subjects }: PolicyRuleTableProps) {
   const [selectedPolicyId, setSelectedPolicyId] = useState<string>(
-    policies[0]?.policy_id || "sales-quarterly"
+    policies[0]?.policy_id || "engineering-internal-strict"
   );
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
-    subjects[0]?.subject_id || "demo_sales_viewer"
+    subjects[0]?.subject_id || "demo_developer"
   );
 
   const activePolicy =

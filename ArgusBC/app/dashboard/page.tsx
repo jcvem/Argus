@@ -47,16 +47,16 @@ const INITIAL_TIMELINE_ENTRIES: TimelineEntryData[] = [
     initialTab: "reason",
     safetyStatus: "allowed_with_reduction",
     reasonDetails: {
-      policyId: "sales-quarterly",
+      policyId: "public-relations-safe",
       policyVersion: "1.0.0",
       rulesTriggered: [
-        "RULE-SAL-01: Redact CUSTOMER_NAME in spreadsheets",
-        "RULE-SAL-02: Suppress EMAIL_ADDRESS values",
-        "RULE-SAL-03: Mask PHONE_NUMBER values",
-        "RULE-SAL-04: Block raw customer detail lists sheet (fail-closed)",
+        "RULE-MKT-01: Redact CUSTOMER_NAME in spreadsheets",
+        "RULE-MKT-02: Suppress EMAIL_ADDRESS values",
+        "RULE-MKT-03: Mask PHONE_NUMBER values",
+        "RULE-MKT-04: Block raw customer detail lists sheet (fail-closed)",
       ],
       explanation:
-        'AVA (Marketing Agent) requested access to September sales metrics. Under policy "sales-quarterly", aggregated totals, item quantities, and product descriptions are allowed. However, all granular customer PII (Customer Name, Email, Phone Number) is strictly redacted with irreversible black bars, and the "Customer Detail Lists" worksheet is quarantined.',
+        'AVA (Marketing Agent) requested access to September sales metrics. Under policy "public-relations-safe", aggregated totals, item quantities, and product descriptions are allowed. However, all granular customer PII (Customer Name, Email, Phone Number) is strictly redacted with irreversible black bars, and the "Customer Detail Lists" worksheet is quarantined.',
       failClosedGuarantees: [
         "Zero raw PII transmitted to agent/LLM context",
         "Derived file verified with byte-identical source preservation",
@@ -94,7 +94,7 @@ const INITIAL_TIMELINE_ENTRIES: TimelineEntryData[] = [
     initialTab: "guardedView", // Matches second card in UI_concept.png
     safetyStatus: "verified",
     reasonDetails: {
-      policyId: "sales-quarterly",
+      policyId: "public-relations-safe",
       policyVersion: "1.0.0",
       rulesTriggered: [
         "RULE-SAL-01: Redact CUSTOMER_NAME",
@@ -129,21 +129,21 @@ const INITIAL_TIMELINE_ENTRIES: TimelineEntryData[] = [
     fileTarget: "Partner_Contract_2026.docx",
     policyCheckRole: "Cerberus Gateway (Role: Developer - Preview Shell)",
     policyConfirmedText:
-      "Developer role evaluated against reviewer policy; 4 sensitive findings held for",
+      "Developer role evaluated against engineering-internal-strict policy; 4 sensitive findings held for",
     policyBlockedItem: "dual-custody figure review.",
     policyGeneratedView: "Partner_Contract_Developer_View.docx",
     reductionLatency: "94ms",
     initialTab: "reason",
     safetyStatus: "review_required",
     reasonDetails: {
-      policyId: "reviewer",
+      policyId: "engineering-internal-strict",
       policyVersion: "1.0.0",
       rulesTriggered: [
-        "RULE-REV-01: Require human review for embedded technical diagrams",
-        "RULE-REV-02: Mask secret API credentials",
+        "RULE-ENG-01: Require human review for embedded technical diagrams",
+        "RULE-ENG-02: Mask secret API credentials",
       ],
       explanation:
-        'Cerberus Gateway (Preview) emulated developer context retrieval. The document contains technical architecture figures with embedded text that require explicit review per "reviewer" policy rules.',
+        'Cerberus Gateway (Preview) emulated developer context retrieval. The document contains technical architecture figures with embedded text that require explicit review per "engineering-internal-strict" policy rules.',
       failClosedGuarantees: [
         "Quarantined from automated AI ingestion until reviewed",
         "API keys masked with deterministic SHA-256 digests",

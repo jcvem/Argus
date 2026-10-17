@@ -45,8 +45,8 @@ export default function SandboxPage() {
   const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
 
   // --- Simulator State ---
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>("demo_sales_viewer");
-  const [selectedPolicyId, setSelectedPolicyId] = useState<string>("sales-quarterly");
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>("demo_developer");
+  const [selectedPolicyId, setSelectedPolicyId] = useState<string>("engineering-internal-strict");
   const [selectedDocSha, setSelectedDocSha] = useState<string>(DEMO_DOCUMENTS[0].source_sha256);
 
   const activeSubject = DEMO_SUBJECTS.find((s) => s.subject_id === selectedSubjectId) || DEMO_SUBJECTS[0];

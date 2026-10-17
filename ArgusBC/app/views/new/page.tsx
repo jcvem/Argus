@@ -22,8 +22,8 @@ export default function NewViewPage() {
   const [selectedDocSha, setSelectedDocSha] = useState<string>(
     DEMO_DOCUMENTS[0].source_sha256
   );
-  const [selectedPolicyId, setSelectedPolicyId] = useState<string>("sales-quarterly");
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>("demo_sales_viewer");
+  const [selectedPolicyId, setSelectedPolicyId] = useState<string>("engineering-internal-strict");
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>("demo_developer");
 
   const selectedDoc = DEMO_DOCUMENTS.find((d) => d.source_sha256 === selectedDocSha) || DEMO_DOCUMENTS[0];
   const selectedPolicy = LOCAL_POLICIES.find((p) => p.policy_id === selectedPolicyId) || LOCAL_POLICIES[0];
