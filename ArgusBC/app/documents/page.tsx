@@ -1167,7 +1167,7 @@ export default function DocumentsPage() {
                       {/* Action buttons */}
                       <div className="flex items-center gap-2 flex-shrink-0 self-end md:self-center">
                         <a
-                          href={`https://redact-core-demo-774324846823.asia-east1.run.app/api/fixtures/sample_report_redacted_${activeRoleTab.toLowerCase()}.pdf`}
+                          href={`/fixtures/sample_report_redacted_${activeRoleTab.toLowerCase()}.pdf`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="px-3 py-1.5 text-xs font-medium bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
@@ -1180,12 +1180,13 @@ export default function DocumentsPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            const liveStreamUrl = `https://redact-core-demo-774324846823.asia-east1.run.app/api/fixtures/sample_report_redacted_${activeRoleTab.toLowerCase()}.pdf`;
+                            const liveStreamUrl = `${window.location.origin}/fixtures/sample_report_redacted_${activeRoleTab.toLowerCase()}.pdf`;
                             handleCopy(liveStreamUrl, `signed_url_${gf.id}`);
                           }}
                           className="px-2.5 py-1.5 text-xs font-medium bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
                           title="Copy streaming URL to clipboard"
                         >
+
                           {copiedKey === `signed_url_${gf.id}` ? (
                             <>
                               <Check className="w-3 h-3 text-emerald-600" />

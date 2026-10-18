@@ -53,6 +53,29 @@ export default function OnboardingPage() {
     refreshUserData();
   }, [user, authLoading, router, refreshUserData]);
 
+  const handleJoinDemoVemStudio = () => {
+    if (!user || !user.email) return;
+    setError(null);
+    setSuccessMsg(null);
+    setIsSubmitting(true);
+
+    try {
+      const res = orgService.attachUserToDemoVemStudio(
+        user.uid,
+        user.email,
+        user.displayName || undefined
+      );
+      setSuccessMsg(`Joined '${res.organization.name}'! Launching control plane...`);
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 700);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to join demo-vemstudio";
+      setError(msg);
+      setIsSubmitting(false);
+    }
+  };
+
   const handleAcceptInvite = (invId: string) => {
     setError(null);
     setSuccessMsg(null);
@@ -221,6 +244,35 @@ export default function OnboardingPage() {
             <span>{successMsg}</span>
           </div>
         )}
+
+        {/* 1-Click Demo Evaluation Project for Non-Tenant Accounts */}
+        <div className="mb-8 p-6 bg-gradient-to-r from-emerald-950/40 via-zinc-900/90 to-emerald-950/40 border border-emerald-500/40 rounded-2xl shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-emerald-400">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span>Google Builder Cup Evaluation Access</span>
+              </div>
+              <h2 className="text-lg font-bold text-white">
+                Join Evaluation Project: <span className="text-emerald-400 font-mono">demo-vemstudio</span> (HUKUROU)
+              </h2>
+              <p className="text-xs text-zinc-300 max-w-2xl leading-relaxed">
+                Your account ({user?.email}) is not yet associated with an enterprise tenant. You can immediately join the official <strong className="text-white">demo-vemstudio</strong> evaluation project with pre-configured Google Drive sync, sample redaction policies, and real-time AI agent access logging.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleJoinDemoVemStudio}
+              disabled={isSubmitting}
+              className="px-5 py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-zinc-950 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 shadow-md shrink-0"
+            >
+              <Building2 className="w-4 h-4" />
+              <span>Attach to demo-vemstudio &amp; Enter</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
 
         {/* Existing Organizations Banner (if any) */}
         {userOrgs.length > 0 && (

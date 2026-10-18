@@ -26,13 +26,16 @@ REGEX_PATTERNS: dict[str, list[re.Pattern]] = {
     "PHONE_NUMBER": [
         # US / International dashed/spaced formats
         re.compile(r"(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b"),
-        # Taiwan mobile and local formats: 09xx-xxx-xxx, +886-x-xxxx-xxxx
+        # Taiwan mobile and local formats: 09xx-xxx-xxx, +886-x-xxxx-xxxx, 02-xxxx-xxxx
         re.compile(r"\b09\d{2}[-\s]?\d{3}[-\s]?\d{3}\b"),
+        re.compile(r"\b0\d{1,2}[-\s]?\d{7,8}\b"),
         re.compile(r"\b\+?886[-.\s]?\d{1,2}[-.\s]?\d{3,4}[-.\s]?\d{4}\b"),
     ],
     "EMPLOYEE_ID": [
         re.compile(r"\b(?:EMP|EID|STAFF)[-_]?[0-9]{3,8}\b", re.IGNORECASE),
         re.compile(r"\bEMP\d{4,6}\b", re.IGNORECASE),
+        # Taiwan National ID Card (身分證字號: 1 capital letter + 9 digits)
+        re.compile(r"\b[A-Z][1289]\d{8}\b"),
     ],
     "SALARY": [
         re.compile(
@@ -40,9 +43,14 @@ REGEX_PATTERNS: dict[str, list[re.Pattern]] = {
             re.IGNORECASE,
         ),
         re.compile(r"\b\d{2,3}(?:,\d{3})+\s*(?:USD|TWD|EUR|GBP)\b"),
+        # Taiwan currency & settlement figures (新臺幣, 萬元, 億元)
+        re.compile(r"(?:新臺幣|新台幣|NT\$|TWD)\s*[\d,]+(?:\.\d+)?\s*(?:萬|億)?元?", re.IGNORECASE),
+        re.compile(r"\b[\d,]+(?:\.\d+)?\s*(?:萬|億)元\b"),
+        re.compile(r"補助(?:上限|金額)?\s*[\d,]+(?:\.\d+)?\s*(?:萬|億)?元"),
     ],
     "PROJECT_CODE": [
         re.compile(r"\b(?:PRJ|PROJECT|PROJ)[-_][A-Z0-9]{2,12}\b", re.IGNORECASE),
+        re.compile(r"(?:「|『|“|\")\s*(?:Project\s+[A-Z][a-zA-Z0-9_]+|[\u4e00-\u9fa5A-Za-z0-9_-]+專案)\s*(?:」|』|”|\")"),
     ],
     "PERSON": [
         # Prefixed by title or role
@@ -50,12 +58,19 @@ REGEX_PATTERNS: dict[str, list[re.Pattern]] = {
             r"(?:(?:Principal\s+Engineer|Security\s+Lead|Engineer|Lead|Manager|Author|Subject|Reviewer|Contact|Employee|Name):\s*)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
         ),
         re.compile(r"\b(?:Mr\.|Ms\.|Mrs\.|Dr\.)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b"),
+        # Traditional Chinese person names following role prefixes
+        re.compile(r"(?:(?:負責人|聯絡人|負責主管|主持人|主持人兼計畫長|計畫主持人|專案經理|簽署人|代表|姓名|員工)[：:\s]+)([\u4e00-\u9fa5]{2,4})"),
     ],
     "ADDRESS": [
         re.compile(
             r"\b\d{1,5}\s+[A-Za-z0-9\s.,]+(?:\b(?:Street|St|Avenue|Ave|Boulevard|Blvd|Road|Rd|Drive|Dr|Lane|Ln|Terrace|Way|Court|Ct|Plaza|Plz)\b)(?:,\s*[A-Za-z\s]+)?",
             re.IGNORECASE,
         ),
+        # Traditional Chinese addresses
+        re.compile(r"(?:台北市|新北市|桃園市|台中市|台南市|高雄市|基隆市|新竹市|嘉義市|新竹縣|苗栗縣|彰化縣|南投縣|雲林縣|嘉義縣|屏東縣|宜蘭縣|花蓮縣|台東縣|澎湖縣|金門縣|連江縣)[^\s\n,，。]{2,30}?(?:路|街|巷|弄|號|樓)"),
+    ],
+    "ORGANIZATION": [
+        re.compile(r"[\u4e00-\u9fa5A-Za-z0-9]{2,20}?(?:股份有限公司|有限公司|科技公司|企業社|事務所|工業館)"),
     ],
 }
 
@@ -101,6 +116,7 @@ class EntityDetector:
         page_or_section: str = "main",
         source_ref: str = "text",
         context_metadata: dict[str, Any] | None = None,
+        allow_llm: bool | None = None,
     ) -> list[EntityFinding]:
         """Detects candidate entities in a single text string."""
         findings: list[EntityFinding] = []
@@ -193,11 +209,15 @@ class EntityDetector:
             except Exception as e:
                 logger.warning(f"Presidio analyze error: {e}")
 
-        # 4. Optional Gemini LLM inspection (strictly gated by feature flag and cloud consent)
-        if self.llm_inspector.is_enabled():
+        # 4. Optional Gemini LLM inspection (strictly gated by detector_mode and feature flag)
+        if allow_llm is None:
+            should_run_llm = self.llm_inspector.is_enabled()
+        else:
+            should_run_llm = allow_llm and self.llm_inspector.is_enabled()
+        if should_run_llm:
             if not self.llm_inspector.is_cloud_consent_granted():
                 msg = (
-                    "Gemini LLM inspection enabled but cloud consent not granted "
+                    "Gemini LLM inspection requested but cloud consent not granted "
                     "(REDACTCORE_ALLOW_CLOUD_LLM=false)."
                 )
                 self.llm_inspector.last_limitation = msg
@@ -206,7 +226,7 @@ class EntityDetector:
                 logger.info(msg)
             elif not self.llm_inspector.is_configured():
                 msg = (
-                    f"Gemini LLM inspection enabled and permitted, but provider "
+                    f"Gemini LLM inspection requested and permitted, but provider "
                     f"({self.llm_inspector.mode} mode) is not configured with credentials."
                 )
                 self.llm_inspector.last_limitation = msg
@@ -259,17 +279,23 @@ class EntityDetector:
             "llm_inspector": self.llm_inspector.check_health(),
         }
 
-    def detect_in_document(self, doc: NormalizedDocument) -> list[EntityFinding]:
+    def detect_in_document(
+        self,
+        doc: NormalizedDocument,
+        detector_mode: str = "deterministic",
+    ) -> list[EntityFinding]:
         """Detects candidate entities across all blocks, tables, and metadata in a NormalizedDocument."""
         all_findings: list[EntityFinding] = []
+        allow_llm = (detector_mode.lower().strip() == "gemini_llm")
 
-        # Detect across text blocks
+        # 1. Fast deterministic recognition across text blocks (regex, metadata, presidio)
         for block in doc.text_blocks:
             findings = self.detect_in_text(
                 text=block.text,
                 page_or_section=block.page_or_section,
                 source_ref=block.block_id,
                 context_metadata=doc.metadata,
+                allow_llm=False,
             )
             is_ocr_block = "ocr" in block.block_id.lower() or getattr(doc, "ocr_status", None) in ("complete", "partial")
             for f in findings:
@@ -292,7 +318,7 @@ class EntityDetector:
                     f.bbox = block.bbox
             all_findings.extend(findings)
 
-        # Detect across tables
+        # 2. Fast deterministic recognition across tables
         for table in doc.tables:
             for r_idx, row in enumerate(table.rows):
                 for c_idx, cell_val in enumerate(row):
@@ -303,8 +329,54 @@ class EntityDetector:
                         page_or_section=table.page_or_section,
                         source_ref=f"{table.table_id}_r{r_idx}_c{c_idx}",
                         context_metadata=doc.metadata,
+                        allow_llm=False,
                     )
                     all_findings.extend(cell_findings)
+
+        # 3. Contextual Gemini LLM inspection aggregated per page/section (prevents N serial API calls)
+        if allow_llm and (self.llm_inspector.is_cloud_consent_granted() and self.llm_inspector.is_configured()):
+            pages: dict[str, list[Any]] = {}
+            for block in doc.text_blocks:
+                pages.setdefault(block.page_or_section, []).append(block)
+
+            for page_name, page_blocks in pages.items():
+                page_text = "\n\n".join(b.text for b in page_blocks if b.text.strip())
+                if len(page_text.strip()) < self.llm_inspector.min_chunk_chars:
+                    continue
+                try:
+                    llm_findings = self.llm_inspector.inspect_text(
+                        text=page_text,
+                        page_or_section=page_name,
+                        source_ref=f"{page_name}_llm",
+                    )
+                    for lf in llm_findings:
+                        # Map to matching block and resolve bounding box
+                        target_val = lf.raw_value or ""
+                        if target_val:
+                            for block in page_blocks:
+                                if target_val in block.text:
+                                    rel_start = block.text.find(target_val)
+                                    rel_end = rel_start + len(target_val)
+                                    lf.source_ref = block.block_id
+                                    lf.start = rel_start
+                                    lf.end = rel_end
+                                    if block.spans:
+                                        matching_spans = [
+                                            s for s in block.spans
+                                            if s.bbox and len(s.bbox) == 4 and not (s.end_char <= rel_start or s.start_char >= rel_end)
+                                        ]
+                                        if matching_spans:
+                                            x0 = min(s.bbox[0] for s in matching_spans)
+                                            y0 = min(s.bbox[1] for s in matching_spans)
+                                            x1 = max(s.bbox[2] for s in matching_spans)
+                                            y1 = max(s.bbox[3] for s in matching_spans)
+                                            lf.bbox = [round(x0, 2), round(y0, 2), round(x1, 2), round(y1, 2)]
+                                    if lf.bbox is None and block.bbox:
+                                        lf.bbox = block.bbox
+                                    break
+                        all_findings.append(lf)
+                except Exception as e:
+                    logger.warning("Page-level Gemini LLM inspection failed on %s: %s", page_name, e)
 
         # Deduplicate identical findings per page/section & entity type & value_digest
         deduped: list[EntityFinding] = []

@@ -25,180 +25,20 @@ import {
   Clock,
   Filter,
   Database,
+  Sparkles,
+  Play,
+  RotateCcw,
+  Zap,
+  Activity,
+  UploadCloud,
 } from "lucide-react";
-
-// Canonical timeline activity feed entries matching UI_concept.png
-const INITIAL_TIMELINE_ENTRIES: TimelineEntryData[] = [
-  {
-    id: "ACT-0914-1",
-    agentName: "AVA",
-    agentRole: "Marketing AI Agent",
-    agentCategory: "Marketing",
-    timestamp: "2026/09/14 10:28 AM",
-    actionSentence:
-      "created a new campaign draft for October promotion, asking for September sells report.",
-    fileTarget: "Sep_Sells.xls",
-    policyCheckRole: "AVA (Role: Marketing - Agent)",
-    policyConfirmedText:
-      "Marketing - Agent allowed access to Sep_Sells.xls, but blocked for",
-    policyBlockedItem: "customer detail lists sheet.",
-    policyGeneratedView: "Sep_Sells_Marketing_AVA.xls",
-    reductionLatency: "63ms",
-    initialTab: "reason",
-    safetyStatus: "allowed_with_reduction",
-    reasonDetails: {
-      policyId: "public-relations-safe",
-      policyVersion: "1.0.0",
-      rulesTriggered: [
-        "RULE-MKT-01: Redact CUSTOMER_NAME in spreadsheets",
-        "RULE-MKT-02: Suppress EMAIL_ADDRESS values",
-        "RULE-MKT-03: Mask PHONE_NUMBER values",
-        "RULE-MKT-04: Block raw customer detail lists sheet (fail-closed)",
-      ],
-      explanation:
-        'AVA (Marketing Agent) requested access to September sales metrics. Under policy "public-relations-safe", aggregated totals, item quantities, and product descriptions are allowed. However, all granular customer PII (Customer Name, Email, Phone Number) is strictly redacted with irreversible black bars, and the "Customer Detail Lists" worksheet is quarantined.',
-      failClosedGuarantees: [
-        "Zero raw PII transmitted to agent/LLM context",
-        "Derived file verified with byte-identical source preservation",
-        "Post-transform leak check passed (0 bytes leaked)",
-      ],
-    },
-    rawDataDetails: {
-      filename: "Sep_Sells.xls",
-      fileSize: "48.2 KB",
-      sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      parsedBlocks: 142,
-      entitiesDetected: 24,
-      sheets: [
-        "Sept 2026 Sales (32 rows)",
-        "August 2026 Summary (18 rows)",
-        "Customer Detail Lists (BLOCKED)",
-      ],
-    },
-  },
-  {
-    id: "ACT-0914-2",
-    agentName: "AVA",
-    agentRole: "Marketing AI Agent",
-    agentCategory: "Marketing",
-    timestamp: "2026/09/14 10:29 AM",
-    actionSentence:
-      "created a new campaign draft for October promotion, asking for September sells report.",
-    fileTarget: "Sep_Sells.xls",
-    policyCheckRole: "AVA (Role: Marketing - Agent)",
-    policyConfirmedText:
-      "Marketing - Agent allowed access to Sep_Sells.xls, but blocked for",
-    policyBlockedItem: "customer detail lists sheet.",
-    policyGeneratedView: "Sep_Sells_Marketing_AVA.xls",
-    reductionLatency: "63ms",
-    initialTab: "guardedView", // Matches second card in UI_concept.png
-    safetyStatus: "verified",
-    reasonDetails: {
-      policyId: "public-relations-safe",
-      policyVersion: "1.0.0",
-      rulesTriggered: [
-        "RULE-SAL-01: Redact CUSTOMER_NAME",
-        "RULE-SAL-02: Suppress EMAIL_ADDRESS",
-        "RULE-SAL-03: Mask PHONE_NUMBER",
-      ],
-      explanation:
-        "Guarded derivative view generated successfully with complete customer PII redaction and spreadsheet layout preservation.",
-      failClosedGuarantees: [
-        "Customer Name column redacted with solid black bars",
-        "Customer Email column suppressed",
-        "Phone numbers masked",
-      ],
-    },
-    rawDataDetails: {
-      filename: "Sep_Sells.xls",
-      fileSize: "48.2 KB",
-      sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      parsedBlocks: 142,
-      entitiesDetected: 24,
-      sheets: ["Sept 2026 Sales", "August 2026", "Customer Detail Lists (BLOCKED)"],
-    },
-  },
-  {
-    id: "ACT-0912-1",
-    agentName: "Cerberus Gateway",
-    agentRole: "Developer Runtime Agent (Preview)",
-    agentCategory: "Developer",
-    timestamp: "2026/09/12 04:15 PM",
-    actionSentence:
-      "intercepted API request for partner onboarding documentation, evaluating access boundaries.",
-    fileTarget: "Partner_Contract_2026.docx",
-    policyCheckRole: "Cerberus Gateway (Role: Developer - Preview Shell)",
-    policyConfirmedText:
-      "Developer role evaluated against engineering-internal-strict policy; 4 sensitive findings held for",
-    policyBlockedItem: "dual-custody figure review.",
-    policyGeneratedView: "Partner_Contract_Developer_View.docx",
-    reductionLatency: "94ms",
-    initialTab: "reason",
-    safetyStatus: "review_required",
-    reasonDetails: {
-      policyId: "engineering-internal-strict",
-      policyVersion: "1.0.0",
-      rulesTriggered: [
-        "RULE-ENG-01: Require human review for embedded technical diagrams",
-        "RULE-ENG-02: Mask secret API credentials",
-      ],
-      explanation:
-        'Cerberus Gateway (Preview) emulated developer context retrieval. The document contains technical architecture figures with embedded text that require explicit review per "engineering-internal-strict" policy rules.',
-      failClosedGuarantees: [
-        "Quarantined from automated AI ingestion until reviewed",
-        "API keys masked with deterministic SHA-256 digests",
-      ],
-    },
-    rawDataDetails: {
-      filename: "Partner_Contract_2026.docx",
-      fileSize: "112.4 KB",
-      sha256: "7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b",
-      parsedBlocks: 88,
-      entitiesDetected: 7,
-      sheets: ["Document Sections: 4", "Embedded Figures: 2"],
-    },
-  },
-  {
-    id: "ACT-0910-1",
-    agentName: "RedactCore Daemon",
-    agentRole: "Automated Verifier",
-    agentCategory: "Security",
-    timestamp: "2026/09/10 09:00 AM",
-    actionSentence:
-      "completed normalized structural parsing and cryptographic leak verification.",
-    fileTarget: "Financial_Audit_Q3.pdf",
-    policyCheckRole: "RedactCore Pipeline (Role: Finance - Auditor)",
-    policyConfirmedText:
-      "Auditor role cleared under finance-full-access policy; phone numbers masked and",
-    policyBlockedItem: undefined,
-    policyGeneratedView: "Financial_Audit_Q3_Auditor.pdf",
-    reductionLatency: "118ms",
-    initialTab: "reason",
-    safetyStatus: "verified",
-    reasonDetails: {
-      policyId: "finance-full-access",
-      policyVersion: "1.0.0",
-      rulesTriggered: [
-        "RULE-FIN-01: Allow salary and employee identification for audit",
-        "RULE-FIN-02: Mask phone numbers",
-      ],
-      explanation:
-        'Financial audit view generated with full post-transform verification. Original source file SHA-256 matches byte-identically with immutable ledger.',
-      failClosedGuarantees: [
-        "Byte-identical immutable original verified",
-        "Derived artifact reopened and parsed for leak checks",
-      ],
-    },
-    rawDataDetails: {
-      filename: "Financial_Audit_Q3.pdf",
-      fileSize: "320.1 KB",
-      sha256: "c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
-      parsedBlocks: 260,
-      entitiesDetected: 38,
-      sheets: ["Financial Statements", "Notes to Accounts"],
-    },
-  },
-];
+import {
+  auditService,
+  CANONICAL_SEED_ENTRIES,
+  AgentSimulationType,
+  AGENT_SIMULATION_PRESETS,
+} from "@/lib/audit-service";
+import { LiveRedactionStudio } from "@/components/LiveRedactionStudio";
 
 export default function DashboardPage() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -206,6 +46,19 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [documents, setDocuments] = useState<DemoDocumentRecord[]>(DEMO_DOCUMENTS);
   const [inspectingDoc, setInspectingDoc] = useState<DemoDocumentRecord | null>(null);
+
+  // Real-time Activity Feed State
+  const [timelineEntries, setTimelineEntries] = useState<TimelineEntryData[]>(CANONICAL_SEED_ENTRIES);
+  const [isLiveFeedConnected, setIsLiveFeedConnected] = useState(false);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [selectedSimAgent, setSelectedSimAgent] = useState<AgentSimulationType>("AVA");
+  const [showSimulator, setShowSimulator] = useState(false);
+  const [showLiveStudio, setShowLiveStudio] = useState(true);
+  const [simSuccessBanner, setSimSuccessBanner] = useState<{
+    agentName: string;
+    latency: string;
+    live: boolean;
+  } | null>(null);
 
   // Search & Role filtering state
   const [searchQuery, setSearchQuery] = useState("");
@@ -253,10 +106,41 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadHealthData();
+
+    // Subscribe to live Firestore audit event ingestion stream
+    const unsubscribe = auditService.subscribeToAuditEvents((events) => {
+      setTimelineEntries(events);
+      setIsLiveFeedConnected(true);
+    });
+
+    return () => unsubscribe();
   }, []);
 
+  const handleTriggerSimulation = async (agentKey: AgentSimulationType) => {
+    setIsSimulating(true);
+    try {
+      const res = await auditService.triggerLiveAgentExecution(agentKey);
+      setSimSuccessBanner({
+        agentName: res.event.agentName,
+        latency: res.event.reductionLatency || `${res.latencyMs}ms`,
+        live: res.isLiveBackend,
+      });
+      setTimeout(() => setSimSuccessBanner(null), 8000);
+    } catch (err) {
+      console.error("Simulation failed:", err);
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
+  const handleResetFeed = async () => {
+    if (window.confirm("Reset activity feed to canonical demo baseline?")) {
+      await auditService.resetFeedToDefaults();
+    }
+  };
+
   // Filter timeline entries based on search query and selected role
-  const filteredTimeline = INITIAL_TIMELINE_ENTRIES.filter((entry) => {
+  const filteredTimeline = timelineEntries.filter((entry) => {
     const matchesSearch =
       searchQuery === "" ||
       entry.agentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -288,16 +172,23 @@ export default function DashboardPage() {
           {/* 1. Page Header Bar matching UI_concept.png */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-200/80">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
-                Data Timeline (2026/09/01 - 2026/09/15)
-              </h1>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
+                  Data Timeline &amp; Activity Feed
+                </h1>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>{isLiveFeedConnected ? "Live Firestore Feed" : "Activity Feed (Synced)"}</span>
+                  <span className="text-[10px] opacity-75 font-mono">({filteredTimeline.length})</span>
+                </span>
+              </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                AI agent activity feed, declarative policy checkpoints, and verified privacy-preserved view generation.
+                Real-time AI agent activity feed, declarative policy checkpoints, and verified privacy-preserved view generation.
               </p>
             </div>
 
-            {/* Right actions: search input, telemetry toggle, new view button */}
-            <div className="flex items-center gap-2.5">
+            {/* Right actions: search input, simulator toggle, telemetry toggle, new view button */}
+            <div className="flex items-center gap-2">
               <div className="relative hidden md:block">
                 <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5 pointer-events-none" />
                 <input
@@ -305,9 +196,45 @@ export default function DashboardPage() {
                   placeholder="Filter timeline…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 w-52"
+                  className="pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 w-44"
                 />
               </div>
+
+              <button
+                type="button"
+                onClick={() => setShowSimulator(!showSimulator)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5 ${
+                  showSimulator
+                    ? "bg-zinc-900 text-white border-zinc-900 shadow-xs"
+                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{showSimulator ? "Hide Simulator" : "Simulate Agent Query"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowLiveStudio(!showLiveStudio)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5 ${
+                  showLiveStudio
+                    ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                    : "bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                }`}
+              >
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span>{showLiveStudio ? "Hide Redactor" : "Live Drag & Drop"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetFeed}
+                className="px-2.5 py-1.5 text-xs text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors flex items-center gap-1"
+                title="Reset feed to baseline cards"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-gray-500" />
+                <span className="hidden sm:inline">Reset</span>
+              </button>
 
               <button
                 type="button"
@@ -319,7 +246,7 @@ export default function DashboardPage() {
                 }`}
               >
                 <Sliders className="w-3.5 h-3.5" />
-                <span>{showTelemetry ? "Hide System Health" : "System Health"}</span>
+                <span>{showTelemetry ? "Hide Health" : "Health"}</span>
               </button>
 
               <Link
@@ -386,6 +313,125 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+
+          {/* 1.5. Live AI Agent Query & Interception Simulator */}
+          {showSimulator && (
+            <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 text-white rounded-xl p-5 shadow-sm border border-zinc-800 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <h2 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-emerald-400" />
+                      Live AI Agent Interception &amp; RedactCore Enclave
+                    </h2>
+                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-zinc-800 text-emerald-400 border border-emerald-500/30">
+                      Real-Time Ingestion
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-300">
+                    Simulate an external AI agent requesting enterprise documents. Argus intercepts the query, enforces declarative policies, verifies zero leakage in milliseconds, and streams the card into this feed.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-zinc-400 hidden lg:inline">
+                    Backend: <span className="text-emerald-400 font-mono">RedactCore Cloud Run / Local</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Agent Preset Selector */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {Object.values(AGENT_SIMULATION_PRESETS).map((preset) => {
+                  const isSelected = selectedSimAgent === preset.key;
+                  return (
+                    <button
+                      key={preset.key}
+                      type="button"
+                      onClick={() => setSelectedSimAgent(preset.key)}
+                      className={`text-left p-3 rounded-lg border transition-all text-xs space-y-1.5 ${
+                        isSelected
+                          ? "bg-zinc-800 border-emerald-500 ring-2 ring-emerald-500/20 text-white shadow-xs"
+                          : "bg-zinc-850/50 border-zinc-800 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-800/60"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white text-xs">{preset.name}</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                          {preset.category}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-zinc-400 truncate">
+                        Target: <span className="text-zinc-200 font-mono">{preset.targetFilename}</span>
+                      </div>
+                      <div className="text-[10px] text-zinc-400 truncate font-mono">
+                        Policy: <span className="text-emerald-400">{preset.policyId}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Action Trigger Row */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-zinc-800/80">
+                <div className="text-xs text-zinc-400 flex items-center gap-2">
+                  <span>Selected agent:</span>
+                  <span className="font-semibold text-white">
+                    {AGENT_SIMULATION_PRESETS[selectedSimAgent].name} ({AGENT_SIMULATION_PRESETS[selectedSimAgent].role})
+                  </span>
+                  <span>&rarr;</span>
+                  <span className="font-mono text-emerald-400">
+                    {AGENT_SIMULATION_PRESETS[selectedSimAgent].targetFilename}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleTriggerSimulation(selectedSimAgent)}
+                  disabled={isSimulating}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-zinc-950 font-bold text-xs rounded-lg transition-all shadow-sm"
+                >
+                  {isSimulating ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-zinc-950" />
+                      <span>Executing RedactCore Enclave...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5 fill-current text-zinc-950" />
+                      <span>Trigger AI Agent Request</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Simulation Result Success Banner */}
+              {simSuccessBanner && (
+                <div className="p-3 bg-emerald-950/90 border border-emerald-500/40 rounded-lg text-xs text-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 animate-fadeIn">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>
+                      Intercepted query for <strong>{simSuccessBanner.agentName}</strong> &bull; Policy enforced in{" "}
+                      <strong className="text-emerald-300 font-mono">{simSuccessBanner.latency}</strong> &bull;{" "}
+                      <strong>0 bytes leaked</strong> &bull; Card prepended to Activity Feed!
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 bg-emerald-900/60 text-emerald-300 rounded border border-emerald-700/50 self-start sm:self-auto">
+                    {simSuccessBanner.live ? "Cloud Run Live" : "Enclave Verified"}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 1.6. Live Drag & Drop Redaction Studio */}
+          {showLiveStudio && (
+            <LiveRedactionStudio />
+          )}
 
           {/* Active Filter Pill Bar (if role or search is active) */}
           {(roleFilter || searchQuery) && (

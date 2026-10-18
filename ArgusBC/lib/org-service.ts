@@ -453,6 +453,71 @@ class OrgService {
     return undefined;
   }
 
+  /**
+   * Attaches any authenticated account to the pre-configured demo-vemstudio
+   * (HUKUROU) project in one click so non-tenant accounts can evaluate immediately.
+   */
+  public attachUserToDemoVemStudio(
+    userId: string,
+    email: string,
+    displayName?: string
+  ): { success: boolean; organization: Organization } {
+    const targetOrgId = DEFAULT_ORGANIZATION.id;
+    let targetOrg = this.organizations.find((o) => o.id === targetOrgId);
+    if (!targetOrg) {
+      targetOrg = { ...DEFAULT_ORGANIZATION, name: "HUKUROU (demo-vemstudio)" };
+      this.organizations.push(targetOrg);
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const existingMember = this.members.find(
+      (m) =>
+        m.orgId === targetOrgId &&
+        (m.userId === userId || (cleanEmail && m.email?.toLowerCase() === cleanEmail))
+    );
+
+    if (!existingMember) {
+      const newMember: OrganizationMember = {
+        userId,
+        orgId: targetOrgId,
+        email: cleanEmail,
+        displayName: displayName || email.split("@")[0],
+        roleId: "role-sec-analyst",
+        status: "active",
+        joinedAt: new Date().toISOString(),
+      };
+      this.members.push(newMember);
+    }
+
+    this.currentOrgId = targetOrgId;
+    this.organization = targetOrg;
+    this.saveToStorage();
+
+    const db = getFirebaseFirestore();
+    if (db) {
+      const memberDoc = doc(db, "organizations", targetOrgId, "members", userId);
+      setDoc(
+        memberDoc,
+        {
+          userId,
+          orgId: targetOrgId,
+          email: cleanEmail,
+          displayName: displayName || email.split("@")[0],
+          roleId: "role-sec-analyst",
+          status: "active",
+          joinedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      ).catch(() => {});
+    }
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("argus-org-changed", { detail: { orgId: targetOrgId } }));
+    }
+
+    return { success: true, organization: targetOrg };
+  }
+
   public createOrganization(
     name: string,
     adminUserId: string,

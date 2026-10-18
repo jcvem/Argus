@@ -41,3 +41,12 @@ rules:
     action: "redact"
     replacement: "[API KEY REDACTED]"
     description: "API credentials are strictly confidential"
+  - entity_type: "PROJECT_CODE"
+    action: "redact"
+    replacement: "[PROJECT REDACTED]"
+    description: "Internal initiative and project codes are redacted"
+  - entity_type: "ORGANIZATION"
+    action: "mask"
+    mask_char: "*"
+    description: "Confidential corporate partner names are masked"
+

@@ -53,6 +53,7 @@ export default function SignInPage() {
     clearError();
     setFormError(null);
     enterDemoMode();
+    orgService.attachUserToDemoVemStudio("user-admin-jc", "jc@vem-studio.com", "JC (Lead Admin)");
     router.push("/dashboard");
   };
 
@@ -186,27 +187,34 @@ export default function SignInPage() {
             </div>
           )}
 
-          {/* Configuration State Notice (Unconfigured Demo Shell) */}
+          {/* Quick Demo Launch: demo-vemstudio (Always available for Evaluators & Judges) */}
+          <div className="p-4 bg-gradient-to-r from-emerald-500/15 via-zinc-900/60 to-emerald-500/15 border border-emerald-500/35 rounded-2xl text-xs space-y-2.5 backdrop-blur-md shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                Google Builder Cup Evaluation Project
+              </span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold">
+                Instant Access
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-300 leading-relaxed">
+              Experience the pre-provisioned <strong className="text-white">demo-vemstudio</strong> enterprise environment: Lead Admin <span className="font-mono text-emerald-300">jc@vem-studio.com</span>, 4 declarative policies, GDrive sync, and real-time activity feed.
+            </p>
+            <button
+              type="button"
+              onClick={handleEnterDemo}
+              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm"
+            >
+              <Terminal className="w-3.5 h-3.5" />
+              <span>Launch demo-vemstudio Project (1-Click)</span>
+            </button>
+          </div>
+
           {!authConfigured && (
-            <div className="p-4 bg-amber-500/10 border border-amber-400/30 rounded-2xl text-xs space-y-3 backdrop-blur-md">
-              <div className="flex items-start gap-2.5 text-amber-200 font-medium">
-                <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
-                <span className="leading-snug">
-                  Firebase environment variables are not configured in <code className="font-mono font-bold bg-amber-400/20 px-1.5 py-0.5 rounded text-amber-100">.env.local</code>.
-                </span>
-              </div>
-              <p className="text-[11px] text-amber-200/80 leading-relaxed">
-                Cloud identity providers are offline. You can run Argus locally in an unauthenticated
-                demo shell without live Google/Firebase credentials.
-              </p>
-              <button
-                type="button"
-                onClick={handleEnterDemo}
-                className="w-full py-2.5 bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/40 text-amber-100 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 backdrop-blur-md shadow-xs"
-              >
-                <Terminal className="w-3.5 h-3.5 text-amber-300" />
-                <span>Enter Demo Shell Directly</span>
-              </button>
+            <div className="p-3 bg-amber-500/10 border border-amber-400/30 rounded-xl text-[11px] text-amber-200/90 flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>Firebase offline: Running with local simulated auth &amp; enclave fallback.</span>
             </div>
           )}
 

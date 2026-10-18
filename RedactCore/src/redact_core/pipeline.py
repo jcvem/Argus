@@ -34,6 +34,26 @@ class RedactionPipeline:
 
     def __init__(self, store: DocumentStore | None = None):
         self.store = store or default_store
+        self._findings_cache: dict[tuple[str, str], list[EntityFinding]] = {}
+
+    def cache_findings(
+        self,
+        source_sha256: str,
+        detector_mode: str,
+        findings: list[EntityFinding],
+    ) -> None:
+        """Caches detected entities for a source document and detector mode to reuse during view generation."""
+        key = (source_sha256.lower().strip(), detector_mode.lower().strip())
+        self._findings_cache[key] = findings
+
+    def get_cached_findings(
+        self,
+        source_sha256: str,
+        detector_mode: str,
+    ) -> list[EntityFinding] | None:
+        """Retrieves cached findings if available."""
+        key = (source_sha256.lower().strip(), detector_mode.lower().strip())
+        return self._findings_cache.get(key)
 
     def ingest_document(self, data: bytes, filename: str) -> tuple[str, Path, NormalizedDocument]:
         """Validates, stores immutable original, and parses into normalized model."""
@@ -76,6 +96,7 @@ class RedactionPipeline:
         policy_id: str,
         subject: SubjectContext,
         resource: ResourceContext | None = None,
+        detector_mode: str = "deterministic",
     ) -> tuple[ViewManifest, Path]:
         """Generates, verifies, and stores an auditable privacy-preserved document view."""
         path = self.store.get_original_path(source_sha256, ext)
@@ -94,8 +115,14 @@ class RedactionPipeline:
         else:
             norm_doc = parse_docx(original_bytes, filename=path.name)
 
-        # 2. Detect candidate entities
-        findings = default_detector.detect_in_document(norm_doc)
+        # 2. Detect candidate entities (reusing cached findings from upload if available, or detecting)
+        resolved_mode = (detector_mode or "deterministic").lower().strip()
+        cached = self.get_cached_findings(source_sha256, resolved_mode)
+        if cached is not None:
+            findings = cached
+        else:
+            findings = default_detector.detect_in_document(norm_doc, detector_mode=resolved_mode)
+            self.cache_findings(source_sha256, resolved_mode, findings)
 
         # 3. Fetch policy
         policy = default_policy_engine.get_policy(policy_id)

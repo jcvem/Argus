@@ -1,0 +1,14 @@
+policy_id: test-dynamic-policy
+name: Dynamic Test Policy
+version: 1.0.0
+description: Test policy committed dynamically
+default_action: allow
+require_figure_review: false
+allowed_subjects: {}
+rules:
+- entity_type: SALARY
+  action: redact
+  replacement: '[CUSTOM SALARY REDACTED]'
+  mask_char: '*'
+  description: Redact compensation
+  conditions: {}

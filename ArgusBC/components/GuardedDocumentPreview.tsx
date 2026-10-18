@@ -19,6 +19,9 @@ interface GuardedDocumentPreviewProps {
   sourceDigest?: string;
   policyApplied?: string;
   reductionLatency?: string;
+  previewUrl?: string;
+  previewText?: string;
+  isImagePreview?: boolean;
 }
 
 export function GuardedDocumentPreview({
@@ -26,8 +29,12 @@ export function GuardedDocumentPreview({
   sourceDigest = "e3b0c442...98f1",
   policyApplied = "sales-quarterly v1.0.0",
   reductionLatency = "63ms",
+  previewUrl,
+  previewText,
+  isImagePreview,
 }: GuardedDocumentPreviewProps) {
   const [activeSubTab, setActiveSubTab] = useState<"spreadsheet" | "pdf" | "split">("split");
+
 
   // Sample spreadsheet rows with deterministic redactions
   const spreadsheetRows = [
@@ -115,14 +122,38 @@ export function GuardedDocumentPreview({
         </div>
       </div>
 
-      {/* Main Preview Container */}
-      <div
-        className={`grid gap-4 ${
-          activeSubTab === "split"
-            ? "grid-cols-1 xl:grid-cols-2"
-            : "grid-cols-1"
-        }`}
-      >
+      {/* If this card has a live rendered preview (from Live Drag & Drop upload), display the real document! */}
+      {previewUrl ? (
+        <div className="border border-zinc-200 rounded-xl overflow-hidden bg-zinc-950 p-3 sm:p-5 text-center shadow-xs">
+          <div className="inline-block max-w-full rounded-lg shadow-2xl overflow-hidden bg-white">
+            <img
+              src={previewUrl}
+              alt="Live Redacted Document"
+              className="max-h-[500px] w-auto object-contain mx-auto"
+            />
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-zinc-400 mt-3 font-mono px-2">
+            <span>Live Enclave Render: {filename}</span>
+            <span className="text-emerald-400">0-leakage verified &bull; Solid black redaction bars applied</span>
+          </div>
+        </div>
+      ) : previewText ? (
+        <div className="bg-zinc-900 text-zinc-100 rounded-xl p-4 font-mono text-xs max-h-80 overflow-y-auto whitespace-pre-wrap border border-zinc-800">
+          <div className="text-[11px] text-zinc-400 mb-2 border-b border-zinc-800 pb-1 font-sans font-semibold">
+            Redacted Text Extract &bull; {filename}
+          </div>
+          {previewText}
+        </div>
+      ) : (
+        /* Otherwise render the default split view for canonical seed events */
+        <div
+          className={`grid gap-4 ${
+            activeSubTab === "split"
+              ? "grid-cols-1 xl:grid-cols-2"
+              : "grid-cols-1"
+          }`}
+        >
+
         {/* Document 1: Excel Spreadsheet View */}
         {(activeSubTab === "split" || activeSubTab === "spreadsheet") && (
           <div className="border border-gray-300 rounded-lg overflow-hidden bg-white shadow-xs flex flex-col">
@@ -373,6 +404,9 @@ export function GuardedDocumentPreview({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
+
+

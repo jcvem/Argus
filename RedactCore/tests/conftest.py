@@ -21,3 +21,10 @@ def ensure_fixtures():
     ]
     if not all(p.exists() for p in required_files):
         generate_fixtures_main()
+
+
+@pytest.fixture
+def client():
+    from fastapi.testclient import TestClient
+    from redact_core.api import app
+    return TestClient(app)

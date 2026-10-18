@@ -81,6 +81,15 @@ service cloud.firestore {
         allow read: if isOrgMember(orgId);
         allow create, update, delete: if isOrgAdmin(orgId);
       }
+
+      // 8. Audit Events / Activity Feed (Live agent queries & derived view logs)
+      match /audit_events/{eventId} {
+        // Allow public read on the demo organization org-hukurou so evaluators/judges can view live streams
+        allow read: if orgId == 'org-hukurou' || isOrgMember(orgId);
+        allow create: if orgId == 'org-hukurou' || isOrgMember(orgId);
+        allow update, delete: if isOrgAdmin(orgId);
+      }
     }
   }
 }
+

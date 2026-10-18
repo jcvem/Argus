@@ -1,8 +1,10 @@
+import asyncio
+import logging
 import os
 from pathlib import Path
 import re
 from typing import Any
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -18,6 +20,8 @@ from redact_core.policy import default_policy_engine
 from redact_core.storage import default_store
 
 load_env_safely()
+
+logger = logging.getLogger("redact_core.api")
 
 
 def get_default_web_dir() -> Path:
@@ -77,7 +81,10 @@ def get_cors_origins() -> list[str]:
         "http://127.0.0.1:5173",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
+        "https://argus-guardian.web.app",
+        "https://argus-guardian.firebaseapp.com",
     ]
+
 
 
 def validate_safe_filename(filename: str | None) -> str:
@@ -171,6 +178,7 @@ class GenerateViewRequest(BaseModel):
     policy_id: str = "sales-quarterly"
     subject_id: str = "demo_sales_viewer"
     roles: list[str] = Field(default_factory=lambda: ["sales", "viewer"])
+    detector_mode: str = "deterministic"
 
     @field_validator("source_sha256")
     @classmethod
@@ -387,6 +395,7 @@ def list_subjects() -> list[dict[str, Any]]:
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
+    detector_mode: str = Form("deterministic"),
 ) -> dict[str, Any]:
     """Uploads document into immutable original store and parses normalized structure.
     
@@ -395,6 +404,12 @@ async def upload_document(
     """
     safe_filename = validate_safe_filename(file.filename)
     max_bytes = get_max_upload_bytes()
+
+    # Resolve detector mode from header or form field (deterministic vs gemini_llm)
+    header_mode = request.headers.get("X-Argus-Detector-Mode")
+    resolved_detector_mode = (header_mode or detector_mode or "deterministic").strip().lower()
+    if resolved_detector_mode not in ("deterministic", "gemini_llm"):
+        resolved_detector_mode = "deterministic"
 
     # Fast check on Content-Length header if provided
     content_length = request.headers.get("content-length")
@@ -441,8 +456,12 @@ async def upload_document(
             detail="Failed to parse document: invalid or corrupted file format",
         )
 
-    # Detect entities in document
-    findings = default_detector.detect_in_document(norm_doc)
+    # Detect entities in document using selected detector mode and cache for view generation
+    # Running in threadpool guarantees the asyncio event loop is NEVER blocked by synchronous detection or LLM inspection
+    findings = await asyncio.to_thread(
+        default_detector.detect_in_document, norm_doc, detector_mode=resolved_detector_mode
+    )
+    default_pipeline.cache_findings(source_sha256, resolved_detector_mode, findings)
 
     return {
         "source_sha256": source_sha256,
@@ -459,6 +478,7 @@ async def upload_document(
         "ocr_warnings": norm_doc.ocr_warnings,
         "warnings": norm_doc.warnings,
         "metadata": norm_doc.metadata,
+        "detector_mode": resolved_detector_mode,
         "findings_count": len(findings),
         "findings_summary": [f.safe_summary() for f in findings],
     }
@@ -483,12 +503,16 @@ def generate_view(req: GenerateViewRequest) -> dict[str, Any]:
             policy_id=req.policy_id,
             subject=subject,
             resource=resource,
+            detector_mode=req.detector_mode,
         )
     except PermissionError as e:
+        logger.warning("PermissionError generating view for %s: %s", req.source_sha256, e)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except (FileNotFoundError, ValueError) as e:
+        logger.warning("ValueError/FileNotFoundError generating view for %s: %s", req.source_sha256, e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except RuntimeError as e:
+    except Exception as e:
+        logger.error("Unexpected error generating view for %s: %s", req.source_sha256, e, exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     return {

@@ -50,7 +50,11 @@ export interface TimelineEntryData {
     entitiesDetected: number;
     sheets?: string[];
   };
+  previewUrl?: string;
+  previewText?: string;
+  isImagePreview?: boolean;
 }
+
 
 interface TimelineCardProps {
   entry: TimelineEntryData;
@@ -472,8 +476,12 @@ export function TimelineCard({
             sourceDigest={entry.rawDataDetails?.sha256}
             policyApplied={entry.reasonDetails?.policyId || "sales-quarterly"}
             reductionLatency={entry.reductionLatency || "63ms"}
+            previewUrl={entry.previewUrl}
+            previewText={entry.previewText}
+            isImagePreview={entry.isImagePreview}
           />
         )}
+
       </div>
     </div>
   );

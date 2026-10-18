@@ -86,14 +86,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(firebaseUser);
         setIsDemoSession(false);
       } else {
-        setUser(null);
-        setIsDemoSession(false);
+        const isDemo = typeof window !== "undefined" && sessionStorage.getItem("argus_demo_mode") === "1";
+        if (isDemo) {
+          setUser(DEMO_USER);
+          setIsDemoSession(true);
+        } else {
+          setUser(null);
+          setIsDemoSession(false);
+        }
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
+
 
   const clearError = () => setError(null);
 

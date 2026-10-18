@@ -41,3 +41,12 @@ rules:
     action: "redact"
     replacement: "[BLACKOUT: API_KEY]"
     description: "API keys strictly confidential"
+  - entity_type: "PROJECT_CODE"
+    action: "redact"
+    replacement: "[BLACKOUT: PROJECT]"
+    description: "Internal project codenames strictly confidential"
+  - entity_type: "ORGANIZATION"
+    action: "redact"
+    replacement: "[BLACKOUT: ORG]"
+    description: "Partner and entity names strictly confidential"
+
