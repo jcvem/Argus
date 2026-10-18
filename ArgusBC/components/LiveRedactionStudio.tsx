@@ -220,8 +220,8 @@ export function LiveRedactionStudio({ onViewCreated, className = "" }: LiveRedac
           entitiesDetected: findingsCount,
           sheets: [`Live Uploaded Document (${engineLabel})`],
         },
-        previewUrl: previewRes.url,
-        previewText: previewRes.text,
+        previewUrl: previewRes.isImage ? api.getViewPreviewUrl(viewId) : (previewRes.url || undefined),
+        previewText: previewRes.text || undefined,
         isImagePreview: previewRes.isImage,
       });
 

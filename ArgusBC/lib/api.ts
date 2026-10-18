@@ -1012,6 +1012,10 @@ export class RedactCoreClient {
   getViewDownloadUrl(viewId: string): string {
     return `${this.baseUrl}/api/views/${encodeURIComponent(viewId)}/download`;
   }
+
+  getViewPreviewUrl(viewId: string): string {
+    return `${this.baseUrl}/api/views/${encodeURIComponent(viewId)}/preview`;
+  }
 }
 
 export const api = new RedactCoreClient();

@@ -354,10 +354,28 @@ class AuditService {
               });
             });
 
-            // Update in-memory & notify
-            this.memoryEvents = remoteEvents;
+            // Preserve locally generated events that have not yet synced to remote Firestore
+            const remoteIds = new Set(remoteEvents.map((e) => e.id));
+            const localUnsynced = this.memoryEvents.filter((e) => !remoteIds.has(e.id));
+
+            // Merge local and remote, sorted newest first
+            this.memoryEvents = [...localUnsynced, ...remoteEvents].sort((a, b) => {
+              const dateA = new Date(a.createdAt || 0).getTime();
+              const dateB = new Date(b.createdAt || 0).getTime();
+              return dateB - dateA;
+            });
+
             this.persistToLocalStorage();
             this.notifyListeners();
+
+            // Background sync any local events that are missing from remote
+            if (localUnsynced.length > 0 && db) {
+              for (const unsynced of localUnsynced) {
+                const docRef = doc(db, "organizations", ORG_ID, AUDIT_COLLECTION, unsynced.id);
+                const firestorePayload = JSON.parse(JSON.stringify(unsynced));
+                setDoc(docRef, firestorePayload, { merge: true }).catch(() => {});
+              }
+            }
           }
         },
         (error) => {
@@ -384,7 +402,8 @@ class AuditService {
     for (const entry of CANONICAL_SEED_ENTRIES) {
       try {
         const docRef = doc(db, "organizations", ORG_ID, AUDIT_COLLECTION, entry.id);
-        await setDoc(docRef, entry, { merge: true });
+        const payload = JSON.parse(JSON.stringify(entry));
+        await setDoc(docRef, payload, { merge: true });
       } catch (err) {
         console.warn(`[AuditService] Failed to seed doc ${entry.id}:`, err);
       }
@@ -411,12 +430,13 @@ class AuditService {
     this.persistToLocalStorage();
     this.notifyListeners();
 
-    // Persist to Firestore
+    // Persist to Firestore with undefined sanitization
     const db = getFirebaseFirestore();
     if (db) {
       try {
         const docRef = doc(db, "organizations", ORG_ID, AUDIT_COLLECTION, id);
-        await setDoc(docRef, fullEntry, { merge: true });
+        const firestorePayload = JSON.parse(JSON.stringify(fullEntry));
+        await setDoc(docRef, firestorePayload, { merge: true });
       } catch (err) {
         console.warn("[AuditService] Firestore write failed, cached locally:", err);
       }
