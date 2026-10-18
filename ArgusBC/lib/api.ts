@@ -15,6 +15,21 @@ const ARISTOTLE_BASE_URL =
   process.env.NEXT_PUBLIC_ARISTOTLE_API_URL?.trim() ||
   "https://aristotle-api-774324846823.asia-east1.run.app";
 
+export const SYSTEM_RESERVED_POLICY_IDS = new Set<string>([
+  "engineering-internal-strict",
+  "creative-partner-minimal",
+  "thirdparty-vendor-restricted",
+  "public-relations-safe",
+  "sales-quarterly",
+  "finance-full-access",
+  "reviewer",
+  "market-full-access",
+]);
+
+export function isSystemReservedPolicy(policyId: string): boolean {
+  return SYSTEM_RESERVED_POLICY_IDS.has(policyId);
+}
+
 /**
  * Pre-loaded canonical policies matching RedactCore/policies/*.yaml
  * Used as honest local fallback when the FastAPI backend is not connected.
@@ -671,6 +686,91 @@ export class RedactCoreClient {
       return { live: true, subjects };
     } catch {
       return { live: false, subjects: DEMO_SUBJECTS };
+    }
+  }
+
+  async activatePolicy(
+    policy: RedactionPolicy
+  ): Promise<{ live: boolean; data?: any; error?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/policies`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(policy),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
+
+      const data = await res.json();
+      // Keep local in-memory policy registry fresh
+      const existingIdx = LOCAL_POLICIES.findIndex((p) => p.policy_id === policy.policy_id);
+      if (existingIdx >= 0) {
+        LOCAL_POLICIES[existingIdx] = policy;
+      } else {
+        LOCAL_POLICIES.unshift(policy);
+      }
+
+      return { live: true, data };
+    } catch (err: any) {
+      console.warn("RedactCore activatePolicy failed:", err);
+      // Fallback local update
+      const existingIdx = LOCAL_POLICIES.findIndex((p) => p.policy_id === policy.policy_id);
+      if (existingIdx >= 0) {
+        LOCAL_POLICIES[existingIdx] = policy;
+      } else {
+        LOCAL_POLICIES.unshift(policy);
+      }
+      return {
+        live: false,
+        error: err?.message,
+        data: { status: "active", policy_id: policy.policy_id },
+      };
+    }
+  }
+
+  async deletePolicy(
+    policyId: string
+  ): Promise<{ live: boolean; data?: any; error?: string }> {
+    if (SYSTEM_RESERVED_POLICY_IDS.has(policyId)) {
+      return {
+        live: false,
+        error: `Policy "${policyId}" is a system-reserved demo policy and cannot be deleted.`,
+      };
+    }
+
+    try {
+      const res = await fetch(`${this.baseUrl}/api/policies/${encodeURIComponent(policyId)}`, {
+        method: "DELETE",
+        headers: { Accept: "application/json" },
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
+
+      const data = await res.json();
+      // Remove from local in-memory policy registry
+      const idx = LOCAL_POLICIES.findIndex((p) => p.policy_id === policyId);
+      if (idx >= 0) {
+        LOCAL_POLICIES.splice(idx, 1);
+      }
+
+      return { live: true, data };
+    } catch (err: any) {
+      console.warn("RedactCore deletePolicy error:", err);
+      // Fallback local update if offline
+      const idx = LOCAL_POLICIES.findIndex((p) => p.policy_id === policyId);
+      if (idx >= 0) {
+        LOCAL_POLICIES.splice(idx, 1);
+      }
+      return { live: false, error: err?.message };
     }
   }
 }

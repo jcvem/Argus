@@ -11,7 +11,7 @@ import pymupdf
 
 from redact_core.entities import default_detector
 from redact_core.env import load_env_safely
-from redact_core.models import ResourceContext, SubjectContext
+from redact_core.models import RedactionPolicy, ResourceContext, SubjectContext
 from redact_core.ocr import default_ocr_router
 from redact_core.pipeline import default_pipeline
 from redact_core.policy import default_policy_engine
@@ -273,6 +273,108 @@ def list_policies() -> list[dict[str, Any]]:
         }
         for p in policies
     ]
+
+
+@app.post("/api/policies", status_code=status.HTTP_201_CREATED)
+def activate_policy(policy: RedactionPolicy) -> dict[str, Any]:
+    """Activates and persists a declarative redaction policy into the enclave repository.
+    
+    1. Validates policy schema and entity types.
+    2. Writes canonical YAML definition to disk policies directory.
+    3. If Cloud Storage is connected, syncs to the organization enclave bucket (gs://.../policies/).
+    4. Reloads the active policy engine so it is instantly available for view transformations.
+    """
+    safe_id = "".join(c for c in policy.policy_id if c.isalnum() or c in ("-", "_")).strip()
+    if not safe_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid policy_id: must contain alphanumeric, hyphen, or underscore characters",
+        )
+
+    # Save to local enclave directory & memory
+    file_path = default_policy_engine.save_policy(policy)
+
+    # If GCS store is active, sync policy YAML to tenant bucket
+    gcs_target = None
+    if hasattr(default_store, "bucket") and getattr(default_store, "bucket", None) is not None:
+        try:
+            gcs_blob_name = f"policies/{safe_id}.yaml"
+            blob = default_store.bucket.blob(gcs_blob_name)
+            blob.upload_from_filename(str(file_path), content_type="application/x-yaml")
+            gcs_target = f"gs://{default_store.bucket_name}/{gcs_blob_name}"
+        except Exception as e:
+            print(f"Warning: Could not sync policy {safe_id} to GCS: {e}")
+
+    return {
+        "status": "active",
+        "policy_id": policy.policy_id,
+        "name": policy.name,
+        "version": policy.version,
+        "rules_count": len(policy.rules),
+        "gcs_target": gcs_target,
+        "local_path": str(file_path),
+        "message": f"Policy '{policy.policy_id}' successfully activated in RedactCore enclave.",
+    }
+
+
+SYSTEM_RESERVED_POLICIES: set[str] = {
+    "engineering-internal-strict",
+    "creative-partner-minimal",
+    "thirdparty-vendor-restricted",
+    "public-relations-safe",
+    "sales-quarterly",
+    "finance-full-access",
+    "reviewer",
+    "market-full-access",
+}
+
+
+@app.delete("/api/policies/{policy_id}")
+def delete_policy(policy_id: str) -> dict[str, Any]:
+    """Deletes a custom policy from the RedactCore enclave repository and GCS sync bucket.
+
+    System-reserved demo policies are immutable and protected against deletion.
+    """
+    safe_id = "".join(c for c in policy_id if c.isalnum() or c in ("-", "_")).strip()
+    if not safe_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid policy_id format: must contain alphanumeric, hyphen, or underscore characters",
+        )
+
+    if safe_id in SYSTEM_RESERVED_POLICIES or policy_id in SYSTEM_RESERVED_POLICIES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Policy '{policy_id}' is a system-reserved demo policy and cannot be deleted.",
+        )
+
+    # Delete from local directory and in-memory engine
+    existed = default_policy_engine.delete_policy(safe_id)
+
+    # If GCS store is active, delete YAML blob from tenant bucket
+    gcs_deleted = False
+    if hasattr(default_store, "bucket") and getattr(default_store, "bucket", None) is not None:
+        try:
+            gcs_blob_name = f"policies/{safe_id}.yaml"
+            blob = default_store.bucket.blob(gcs_blob_name)
+            if blob.exists():
+                blob.delete()
+                gcs_deleted = True
+        except Exception as e:
+            print(f"Warning: Could not delete policy {safe_id} from GCS: {e}")
+
+    if not existed and not gcs_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Policy '{policy_id}' not found in enclave repository.",
+        )
+
+    return {
+        "status": "deleted",
+        "policy_id": safe_id,
+        "gcs_deleted": gcs_deleted,
+        "message": f"Policy '{safe_id}' successfully removed from enclave.",
+    }
 
 
 @app.get("/api/subjects")

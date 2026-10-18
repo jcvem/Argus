@@ -2,25 +2,55 @@
 
 import React, { useState } from "react";
 import { RedactionPolicy, DemoSubject, PolicyRule } from "@/lib/types";
-import { Sliders, Shield, AlertTriangle, Check, UserCheck, Info } from "lucide-react";
+import { isSystemReservedPolicy } from "@/lib/api";
+import {
+  Sliders,
+  Shield,
+  AlertTriangle,
+  Check,
+  UserCheck,
+  Info,
+  Trash2,
+  Lock,
+  RefreshCw,
+} from "lucide-react";
 
 interface PolicyRuleTableProps {
   policies: RedactionPolicy[];
   subjects: DemoSubject[];
+  onDeletePolicy?: (policyId: string) => Promise<void>;
 }
 
-export function PolicyRuleTable({ policies, subjects }: PolicyRuleTableProps) {
+export function PolicyRuleTable({ policies, subjects, onDeletePolicy }: PolicyRuleTableProps) {
   const [selectedPolicyId, setSelectedPolicyId] = useState<string>(
     policies[0]?.policy_id || "engineering-internal-strict"
   );
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
     subjects[0]?.subject_id || "demo_developer"
   );
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+  // Sync selectedPolicyId if current active policy was deleted
   const activePolicy =
     policies.find((p) => p.policy_id === selectedPolicyId) || policies[0];
   const activeSubject =
     subjects.find((s) => s.subject_id === selectedSubjectId) || subjects[0];
+
+  const handleDelete = async (policyId: string) => {
+    if (!onDeletePolicy) return;
+    setIsDeleting(true);
+    try {
+      await onDeletePolicy(policyId);
+      setConfirmDeleteId(null);
+      const remaining = policies.filter((p) => p.policy_id !== policyId);
+      if (remaining.length > 0) {
+        setSelectedPolicyId(remaining[0].policy_id);
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const getActionBadge = (action: string) => {
     switch (action.toLowerCase()) {
@@ -70,20 +100,36 @@ export function PolicyRuleTable({ policies, subjects }: PolicyRuleTableProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             {policies.map((p) => {
-              const isSelected = p.policy_id === selectedPolicyId;
+              const isSelected = p.policy_id === (activePolicy?.policy_id || selectedPolicyId);
+              const isReserved = isSystemReservedPolicy(p.policy_id);
               return (
                 <button
                   key={p.policy_id}
                   type="button"
-                  onClick={() => setSelectedPolicyId(p.policy_id)}
-                  className={`text-left p-3.5 rounded-xl border transition-all ${
+                  onClick={() => {
+                    setSelectedPolicyId(p.policy_id);
+                    setConfirmDeleteId(null);
+                  }}
+                  className={`text-left p-3.5 rounded-xl border transition-all relative ${
                     isSelected
                       ? "bg-white border-zinc-900 ring-2 ring-zinc-900/10 shadow-xs"
                       : "bg-white border-gray-200 hover:border-gray-300"
                   }`}
                 >
-                  <div className="font-semibold text-xs text-gray-900 truncate">
-                    {p.policy_id}
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="font-semibold text-xs text-gray-900 truncate">
+                      {p.policy_id}
+                    </span>
+                    {isReserved ? (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.2 rounded bg-gray-100 text-gray-500 font-mono font-medium">
+                        <Lock className="w-2.5 h-2.5" />
+                        Demo
+                      </span>
+                    ) : (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200 font-mono font-semibold">
+                        Custom
+                      </span>
+                    )}
                   </div>
                   <div className="text-[11px] text-gray-500 truncate mt-0.5">
                     {p.name}
@@ -138,7 +184,7 @@ export function PolicyRuleTable({ policies, subjects }: PolicyRuleTableProps) {
       {/* Selected Policy Overview Header */}
       {activePolicy && (
         <div className="p-5 bg-white border border-gray-200/80 rounded-xl shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 border-b border-gray-100 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 border-b border-gray-100 pb-3">
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-gray-900">
@@ -147,6 +193,16 @@ export function PolicyRuleTable({ policies, subjects }: PolicyRuleTableProps) {
                 <span className="font-mono text-xs px-2 py-0.5 border border-gray-200 bg-gray-50 text-gray-600 rounded-full">
                   v{activePolicy.version}
                 </span>
+                {isSystemReservedPolicy(activePolicy.policy_id) ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-600 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">
+                    <Lock className="w-3 h-3 text-gray-400" />
+                    System Demo Policy
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+                    User-Added Custom Policy
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-600 mt-1 max-w-3xl leading-relaxed">
                 {activePolicy.description}
@@ -171,8 +227,71 @@ export function PolicyRuleTable({ policies, subjects }: PolicyRuleTableProps) {
                   </span>
                 )}
               </div>
+
+              {/* Policy Action / Deletion Guard */}
+              {isSystemReservedPolicy(activePolicy.policy_id) ? (
+                <span
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-gray-400 bg-gray-50 border border-gray-200/80 rounded-lg cursor-not-allowed"
+                  title="Immutable demonstration policy. System reserved policies cannot be deleted."
+                >
+                  <Lock className="w-3 h-3 text-gray-400" />
+                  <span>Protected</span>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteId(activePolicy.policy_id)}
+                  disabled={isDeleting}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors cursor-pointer"
+                  title="Delete this custom policy from RedactCore, GCS bucket, and Firestore"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                  <span>Delete Policy</span>
+                </button>
+              )}
             </div>
           </div>
+
+          {/* Delete Confirmation Alert if triggered */}
+          {confirmDeleteId === activePolicy.policy_id && (
+            <div className="p-3.5 bg-red-50/90 border border-red-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-start sm:items-center gap-2 text-red-900">
+                <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5 sm:mt-0" />
+                <span>
+                  Confirm deletion of <strong>&quot;{activePolicy.name}&quot;</strong> (<code>{activePolicy.policy_id}</code>)?
+                  This permanently removes the YAML file from RedactCore, deletes the tenant Cloud Storage backup, and purges the Firestore registry.
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteId(null)}
+                  disabled={isDeleting}
+                  className="px-2.5 py-1 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-lg text-[11px] font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(activePolicy.policy_id)}
+                  disabled={isDeleting}
+                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1.5 shadow-xs"
+                >
+                  {isDeleting ? (
+                    <>
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3 h-3 text-white" />
+                      <span>Permanently Delete</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Rules Table */}
           <div className="overflow-x-auto">

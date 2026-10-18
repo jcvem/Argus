@@ -5,6 +5,7 @@ import { ProtectedRoute } from "@/lib/auth-context";
 import { AppShell } from "@/components/AppShell";
 import { PolicyRuleTable } from "@/components/PolicyRuleTable";
 import { api, aristotleApi, LOCAL_POLICIES, DEMO_SUBJECTS } from "@/lib/api";
+import { orgService } from "@/lib/org-service";
 import { RedactionPolicy, DemoSubject, AristotleDraftResponse, PolicyAction } from "@/lib/types";
 import {
   Sparkles,
@@ -48,6 +49,12 @@ export default function PoliciesPage() {
   const [draftError, setDraftError] = useState<string | null>(null);
   const [showYaml, setShowYaml] = useState(false);
   const [copiedYaml, setCopiedYaml] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
+  const [activationFeedback, setActivationFeedback] = useState<{
+    success: boolean;
+    message: string;
+    target?: string;
+  } | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -95,6 +102,56 @@ export default function PoliciesPage() {
     navigator.clipboard.writeText(yaml);
     setCopiedYaml(true);
     setTimeout(() => setCopiedYaml(false), 2000);
+  };
+
+  const handleActivatePolicy = async () => {
+    if (!draftResponse?.policy) return;
+    setIsActivating(true);
+    setActivationFeedback(null);
+
+    try {
+      // 1. Commit to RedactCore enclave (writes YAML and syncs to GCS)
+      const redactResult = await api.activatePolicy(draftResponse.policy);
+
+      // 2. Commit to Firestore organization policy registry
+      await orgService.savePolicyToRegistry("org-hukurou", draftResponse.policy);
+
+      setActivationFeedback({
+        success: true,
+        message: `Policy "${draftResponse.policy.name || draftResponse.policy.policy_id}" committed & activated!`,
+        target: redactResult.data?.gcs_target || "gs://argus-tenant-org-hukurou/policies/",
+      });
+
+      // 3. Reload active policies so it shows in the table immediately
+      await loadData();
+    } catch (err: any) {
+      setActivationFeedback({
+        success: false,
+        message: err?.message || "Failed to activate policy in enclave.",
+      });
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
+  const handleDeletePolicy = async (policyId: string) => {
+    try {
+      // 1. Delete from RedactCore Enclave & Cloud Storage
+      const delResult = await api.deletePolicy(policyId);
+      if (delResult.error) {
+        throw new Error(delResult.error);
+      }
+
+      // 2. Delete from Firestore organization registry
+      await orgService.deletePolicyFromRegistry("org-hukurou", policyId);
+
+      // 3. Reload list to update UI
+      await loadData();
+    } catch (err: any) {
+      console.error("Failed to delete policy:", err);
+      alert(`Deletion failed: ${err?.message || "Unknown error"}`);
+      throw err;
+    }
   };
 
   const renderActionBadge = (action: PolicyAction) => {
@@ -309,6 +366,40 @@ export default function PoliciesPage() {
               </div>
             )}
 
+            {/* Activation Feedback Alert */}
+            {activationFeedback && (
+              <div
+                className={`p-3.5 rounded-xl border text-xs flex items-center justify-between gap-3 ${
+                  activationFeedback.success
+                    ? "bg-emerald-50/90 border-emerald-300 text-emerald-900 shadow-2xs"
+                    : "bg-red-50/90 border-red-300 text-red-900"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  {activationFeedback.success ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                  )}
+                  <div>
+                    <span className="font-bold text-xs">{activationFeedback.message}</span>
+                    {activationFeedback.target && (
+                      <span className="block text-[11px] font-mono text-emerald-700 mt-0.5">
+                        Enclave Repository: {activationFeedback.target}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActivationFeedback(null)}
+                  className="text-[11px] font-semibold text-gray-500 hover:text-gray-800 px-2 py-0.5 rounded border border-gray-200 bg-white"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
             {/* Result Policy in Rich Tabular View */}
             {draftResponse?.policy && (
               <div className="pt-2 space-y-4">
@@ -333,6 +424,26 @@ export default function PoliciesPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleActivatePolicy}
+                        disabled={isActivating || !draftResponse.policy}
+                        className="px-3 py-1 text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                        title="Commit this policy to the Enclave and activate it immediately for RedactCore transformations"
+                      >
+                        {isActivating ? (
+                          <>
+                            <RefreshCw className="w-3 h-3 animate-spin" />
+                            <span>Activating...</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-100" />
+                            <span>Activate Policy</span>
+                          </>
+                        )}
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => setShowYaml(!showYaml)}
@@ -524,7 +635,11 @@ export default function PoliciesPage() {
               </p>
             </div>
 
-            <PolicyRuleTable policies={policies} subjects={subjects} />
+            <PolicyRuleTable
+              policies={policies}
+              subjects={subjects}
+              onDeletePolicy={handleDeletePolicy}
+            />
           </section>
         </div>
       </AppShell>

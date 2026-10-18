@@ -290,3 +290,95 @@ def test_generate_view_request_validation(client):
         "subject_id": "demo_sales_viewer",
     })
     assert resp_ext.status_code == 422
+
+
+def test_activate_policy(client):
+    policy_payload = {
+        "policy_id": "test-dynamic-policy",
+        "name": "Dynamic Test Policy",
+        "version": "1.0.0",
+        "description": "Test policy committed dynamically",
+        "default_action": "allow",
+        "require_figure_review": False,
+        "rules": [
+            {
+                "entity_type": "SALARY",
+                "action": "redact",
+                "replacement": "[CUSTOM SALARY REDACTED]",
+                "description": "Redact compensation",
+            }
+        ],
+    }
+    resp = client.post("/api/policies", json=policy_payload)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["status"] == "active"
+    assert data["policy_id"] == "test-dynamic-policy"
+
+    # Verify it shows up in GET /api/policies
+    list_resp = client.get("/api/policies")
+    assert list_resp.status_code == 200
+    ids = [p["policy_id"] for p in list_resp.json()]
+    assert "test-dynamic-policy" in ids
+
+
+def test_cannot_delete_reserved_demo_policy(client):
+    """Verifies that system-reserved demo policies cannot be deleted (HTTP 403 Forbidden)."""
+    reserved_demos = [
+        "engineering-internal-strict",
+        "creative-partner-minimal",
+        "thirdparty-vendor-restricted",
+        "public-relations-safe",
+        "sales-quarterly",
+        "finance-full-access",
+        "reviewer",
+        "market-full-access",
+    ]
+    for pol_id in reserved_demos:
+        del_resp = client.delete(f"/api/policies/{pol_id}")
+        assert del_resp.status_code == 403
+        data = del_resp.json()
+        assert "cannot be deleted" in data["detail"].lower()
+
+
+def test_delete_custom_policy(client):
+    """Verifies that a custom policy can be created and cleanly deleted."""
+    custom_policy = {
+        "policy_id": "test-to-delete",
+        "name": "Custom Ephemeral Policy",
+        "version": "1.0.0",
+        "description": "Ephemeral policy to test deletion workflow",
+        "default_action": "allow",
+        "require_figure_review": False,
+        "rules": [
+            {
+                "entity_type": "SALARY",
+                "action": "redact",
+                "replacement": "[CUSTOM DELETED]",
+                "description": "Redact compensation",
+            }
+        ],
+    }
+    # 1. Create custom policy
+    create_resp = client.post("/api/policies", json=custom_policy)
+    assert create_resp.status_code == 201
+
+    # Verify present
+    list_resp = client.get("/api/policies")
+    assert any(p["policy_id"] == "test-to-delete" for p in list_resp.json())
+
+    # 2. Delete custom policy
+    del_resp = client.delete("/api/policies/test-to-delete")
+    assert del_resp.status_code == 200
+    del_data = del_resp.json()
+    assert del_data["status"] == "deleted"
+    assert del_data["policy_id"] == "test-to-delete"
+
+    # 3. Verify removed from list
+    list_resp_after = client.get("/api/policies")
+    assert not any(p["policy_id"] == "test-to-delete" for p in list_resp_after.json())
+
+    # 4. Deleting again returns 404
+    del_again = client.delete("/api/policies/test-to-delete")
+    assert del_again.status_code == 404
+

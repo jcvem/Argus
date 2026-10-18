@@ -149,3 +149,606 @@ Wire RedactCore to ArgusBC: Connect ArgusBC's document/view pages to RedactCore'
 Implement Structured Data Projections: Add CSV/JSON support to RedactCore so tabular operational data (e.g. Victor synthetic manufacturing data) can be filtered, masked, and aggregated.
 Connect to Aristotle: Enable RedactCore to accept exported policies directly from Aristotle's API.
 Build the Safe RAG Ingestion Hook: Add an export step where a verified derived view outputs sanitized text chunks ready for vector indexing.
+
+==========================================================================
+
+Pulled remote successfully.
+
+Repository status
+
+- git pull --ff-only origin main completed.
+- Updated from c4680d2 to a450ee6.
+- Local main matches origin/main.
+- The latest remote commit is:
+
+text
+a450ee6 refactor: add DraftPolicySchema for Gemini API compatibility and update redaction policies
+
+There are unrelated local changes still present and untouched:
+
+text
+M  ArgusBC/.firebase/hosting.b3V0.cache
+M  ArgusBC/tsconfig.tsbuildinfo
+M  Web
+?? ArgusBC/.firebaserc
+?? ArgusBC/draft_idea.md
+
+Current Argus status
+
+1. RedactCore — most mature executable subsystem
+
+Implemented:
+
+- PDF/DOCX parsing.
+- Deterministic entity detection.
+- YAML policy loading.
+- Immutable SHA-256 source storage.
+- Physical PDF/DOCX transformation.
+- Post-transformation leakage verification.
+- Safe manifests with digests rather than raw PII.
+- FastAPI API.
+- OCR provider abstractions and fail-closed scanned-document behavior.
+- Figure review handling.
+
+Current limitation:
+
+- Production deployment still needs durable object storage, authenticated identity, signed URLs, persistent metadata, and tenant isolation.
+
+1. Aristotle — now implemented as a focused Gemini policy-drafting API
+
+Location:
+
+Aristotle/
+
+Implemented endpoint:
+
+text
+GET  /healthz
+POST /v1/policy/draft
+
+The endpoint:
+
+- Accepts natural-language policy requirements.
+- Uses the official google-genai SDK.
+- Uses the Gemini Developer API via GEMINI_API_KEY.
+- Defaults to gemini-2.5-flash.
+- Supports ARISTOTLE_MODEL.
+- Uses structured Gemini output through DraftPolicySchema.
+- Converts output into a RedactCore-compatible RedactionPolicy.
+- Enforces allowlisted entity types/actions.
+- Deduplicates conflicting rules conservatively.
+- Returns draft_only: true.
+- Does not persist or activate policies.
+- Fails with 503 when no Gemini API key is configured.
+- Fails safely on malformed Gemini output or upstream errors.
+
+Verification run after the pull:
+
+text
+21 passed, 1 warning in 0.58s
+
+Also passed:
+
+- Python compilation.
+- git diff --check.
+- RedactCore YAML compatibility tests.
+- Gemini structured-schema tests.
+- Missing-key behavior.
+- Malformed-output handling.
+- Duplicate-rule normalization.
+
+The latest pull added:
+
+- DraftPolicySchema specifically for Gemini API compatibility.
+- Additional model tests.
+- Gemini provider parsing changes.
+- NaturalLanguagePolicy_TW.md with 20 Traditional Chinese policy prompts for testing.
+- YAML compatibility test coverage.
+- pyyaml development dependency.
+
+The Dockerfile exists and is Cloud Run-compatible, but I could not build it because Docker Desktop is not running:
+
+text
+Cannot connect to the Docker daemon at unix:///Users/jc/.docker/run/docker.sock
+
+1. ArgusBC — control-plane foundation
+
+Implemented:
+
+- Next.js/TypeScript control plane.
+- Firebase auth scaffolding.
+- Demo Shell mode.
+- Organizations, workspaces, roles, invitations.
+- Dashboard.
+- Policy inspection.
+- Document upload surface.
+- Derived-view configuration.
+- Agent management.
+- Sandbox simulations.
+- Local fallback data and RedactCore API client.
+
+Important boundary:
+
+The UI contains client-side/demo implementations named around Cerberus and agent authorization, but these are not yet production enforcement services.
+
+1. Cerberus — still missing as a real service
+
+Currently only:
+
+- Specification under Cerberus/.
+- Local TypeScript/demo gateway logic inside ArgusBC.
+
+Still missing:
+
+- Authenticated runtime gateway.
+- OIDC/OAuth/JWT validation.
+- Delegated identity enforcement.
+- Real MCP interception.
+- Runtime policy decision enforcement.
+- RedactCore integration through authenticated requests.
+- Structured-data/tool-response filtering.
+- Audit event sink.
+- Quarantine enforcement.
+
+1. Medusa — still specification-only
+
+Still missing:
+
+- Access graph model.
+- Policy/agent/resource change simulator.
+- Before/after decision diff.
+- Blast-radius calculation.
+- Quarantine state machine.
+- Review cases.
+- Approval/rejection/rollback events.
+- Snapshot hashing and reproducible simulation reports.
+
+1. Aristotle formal analysis — still missing beyond drafting
+
+The current Aristotle implementation is intentionally narrow. It does not yet provide:
+
+- Contradiction detection.
+- Unreachable rule detection.
+- Ambiguous precedence analysis.
+- Separation-of-duties checks.
+- Privilege escalation analysis.
+- Z3/SMT counterexamples.
+- Policy activation workflow.
+- Policy persistence/version registry.
+- CI/pre-activation checks.
+
+That is appropriate for the current scope. The natural-language endpoint should remain draft-only until policy validation and review are stronger.
+
+What is still missing from the next steps
+
+Priority 1: Make Aristotle useful end-to-end
+
+The next practical milestone is to connect the new API to ArgusBC:
+
+text
+ArgusBC policy UI
+      ↓
+POST /v1/policy/draft
+      ↓
+Gemini-generated DraftPolicySchema
+      ↓
+RedactCore-compatible policy
+      ↓
+Human review
+      ↓
+Export/download or submit for validation
+
+Still needed:
+
+- Configure NEXT_PUBLIC_ARISTOTLE_API_URL or an equivalent server-side proxy.
+- Add an ArgusBC client for /v1/policy/draft.
+- Replace or clearly separate the current local deterministic translator.
+- Show Gemini/draft status in the UI.
+- Render warnings and unsupported/ambiguous requirements.
+- Keep “Save/Activate” disabled because no persistence/approval endpoint exists.
+- Add CORS/auth strategy before exposing the API publicly.
+
+Priority 2: Add a real policy validation boundary
+
+Before policies can be activated:
+
+- Validate every generated policy against RedactCore.
+- Add policy linting.
+- Detect contradictory rules.
+- Detect invalid or unsupported semantics.
+- Identify ambiguous defaults.
+- Produce human-readable validation warnings.
+- Keep generated policies immutable/versioned.
+- Introduce a review state:
+
+text
+DRAFT → VALIDATED → UNDER_REVIEW → APPROVED → ACTIVE
+
+This is the first real Aristotle expansion beyond LLM translation.
+
+Priority 3: Secure and deploy the Aristotle API
+
+Still missing:
+
+- Start Docker Desktop and build the image.
+- Add Cloud Run deployment configuration.
+- Store GEMINI_API_KEY in Secret Manager.
+- Configure Cloud Run service identity.
+- Add authentication or an authenticated internal proxy.
+- Add rate limiting and request quotas.
+- Configure production CORS.
+- Add structured request IDs and safe observability.
+- Add provider timeout/retry policy.
+- Add budget/model usage monitoring.
+
+The README has a deployment shape, but there is no live deployment yet.
+
+Priority 4: Connect ArgusBC to RedactCore for a real verified-view path
+
+The intended control flow is:
+
+text
+Source
+  → RedactCore upload
+  → Aristotle policy draft/validation
+  → human approval
+  → RedactCore view generation
+  → verification
+  → safe derived view
+  → RAG indexing
+
+Still missing or incomplete:
+
+- Durable source/view/manifest storage.
+- Live ArgusBC upload-to-RedactCore integration.
+- Live POST /api/views wiring from the UI.
+- Signed artifact URLs.
+- Verified-view extraction/chunking.
+- Workspace-scoped embeddings/index.
+- Index eligibility gate requiring verification.passed == true.
+
+Priority 5: Implement Cerberus runtime enforcement
+
+Once the verified-view path exists:
+
+- Define typed AccessRequest and Decision contracts.
+- Authenticate the principal.
+- Validate purpose, workspace, resource, and delegation.
+- Check Medusa quarantine state.
+- Call RedactCore for transformations.
+- Filter tool/MCP results.
+- Prevent raw source retrieval.
+- Emit audit events.
+
+Priority 6: Implement Medusa before production policy/agent activation
+
+Before users can safely activate agents or policy changes:
+
+- Snapshot policy/resource/access graphs.
+- Simulate proposed changes.
+- Produce affected principals/resources.
+- Quarantine risky changes.
+- Require review.
+- Support approval, rejection, rollback.
+- Block activation when Aristotle or Medusa is unavailable.
+
+Current recommended next milestone
+
+I would not jump directly to Cerberus or Medusa yet. The best next vertical slice is:
+
+text
+
+1. Deploy Aristotle privately on Cloud Run.
+2. Connect ArgusBC Policy Studio to it.
+3. Generate a Gemini policy from English/Traditional Chinese.
+4. Validate it against RedactCore policy semantics.
+5. Display warnings and a safe policy diff.
+6. Let a human download/export the draft.
+7. Use the approved policy manually with RedactCore.
+
+That creates a genuinely demonstrable Aristotle feature without pretending that policy activation or runtime enforcement already exists.
+
+Current project truth in one sentence:
+
+> Argus now has a working RedactCore privacy transformation core, a control-plane UI, and a Gemini-powered Aristotle policy-drafting API; the remaining major work is secure deployment, UI integration, formal policy validation, durable storage, then Medusa/Cerberus runtime governance.
+==========
+
+Pulled remote successfully.
+
+Repository status
+
+- git pull --ff-only origin main completed.
+- Updated from c4680d2 to a450ee6.
+- Local main matches origin/main.
+- The latest remote commit is:
+
+text
+a450ee6 refactor: add DraftPolicySchema for Gemini API compatibility and update redaction policies
+
+There are unrelated local changes still present and untouched:
+
+text
+M  ArgusBC/.firebase/hosting.b3V0.cache
+M  ArgusBC/tsconfig.tsbuildinfo
+M  Web
+?? ArgusBC/.firebaserc
+?? ArgusBC/draft_idea.md
+
+Current Argus status
+
+1. RedactCore — most mature executable subsystem
+
+Implemented:
+
+- PDF/DOCX parsing.
+- Deterministic entity detection.
+- YAML policy loading.
+- Immutable SHA-256 source storage.
+- Physical PDF/DOCX transformation.
+- Post-transformation leakage verification.
+- Safe manifests with digests rather than raw PII.
+- FastAPI API.
+- OCR provider abstractions and fail-closed scanned-document behavior.
+- Figure review handling.
+
+Current limitation:
+
+- Production deployment still needs durable object storage, authenticated identity, signed URLs, persistent metadata, and tenant isolation.
+
+1. Aristotle — now implemented as a focused Gemini policy-drafting API
+
+Location:
+
+Aristotle/
+
+Implemented endpoint:
+
+text
+GET  /healthz
+POST /v1/policy/draft
+
+The endpoint:
+
+- Accepts natural-language policy requirements.
+- Uses the official google-genai SDK.
+- Uses the Gemini Developer API via GEMINI_API_KEY.
+- Defaults to gemini-2.5-flash.
+- Supports ARISTOTLE_MODEL.
+- Uses structured Gemini output through DraftPolicySchema.
+- Converts output into a RedactCore-compatible RedactionPolicy.
+- Enforces allowlisted entity types/actions.
+- Deduplicates conflicting rules conservatively.
+- Returns draft_only: true.
+- Does not persist or activate policies.
+- Fails with 503 when no Gemini API key is configured.
+- Fails safely on malformed Gemini output or upstream errors.
+
+Verification run after the pull:
+
+text
+21 passed, 1 warning in 0.58s
+
+Also passed:
+
+- Python compilation.
+- git diff --check.
+- RedactCore YAML compatibility tests.
+- Gemini structured-schema tests.
+- Missing-key behavior.
+- Malformed-output handling.
+- Duplicate-rule normalization.
+
+The latest pull added:
+
+- DraftPolicySchema specifically for Gemini API compatibility.
+- Additional model tests.
+- Gemini provider parsing changes.
+- NaturalLanguagePolicy_TW.md with 20 Traditional Chinese policy prompts for testing.
+- YAML compatibility test coverage.
+- pyyaml development dependency.
+
+The Dockerfile exists and is Cloud Run-compatible, but I could not build it because Docker Desktop is not running:
+
+text
+Cannot connect to the Docker daemon at unix:///Users/jc/.docker/run/docker.sock
+
+1. ArgusBC — control-plane foundation
+
+Implemented:
+
+- Next.js/TypeScript control plane.
+- Firebase auth scaffolding.
+- Demo Shell mode.
+- Organizations, workspaces, roles, invitations.
+- Dashboard.
+- Policy inspection.
+- Document upload surface.
+- Derived-view configuration.
+- Agent management.
+- Sandbox simulations.
+- Local fallback data and RedactCore API client.
+
+Important boundary:
+
+The UI contains client-side/demo implementations named around Cerberus and agent authorization, but these are not yet production enforcement services.
+
+1. Cerberus — still missing as a real service
+
+Currently only:
+
+- Specification under Cerberus/.
+- Local TypeScript/demo gateway logic inside ArgusBC.
+
+Still missing:
+
+- Authenticated runtime gateway.
+- OIDC/OAuth/JWT validation.
+- Delegated identity enforcement.
+- Real MCP interception.
+- Runtime policy decision enforcement.
+- RedactCore integration through authenticated requests.
+- Structured-data/tool-response filtering.
+- Audit event sink.
+- Quarantine enforcement.
+
+1. Medusa — still specification-only
+
+Still missing:
+
+- Access graph model.
+- Policy/agent/resource change simulator.
+- Before/after decision diff.
+- Blast-radius calculation.
+- Quarantine state machine.
+- Review cases.
+- Approval/rejection/rollback events.
+- Snapshot hashing and reproducible simulation reports.
+
+1. Aristotle formal analysis — still missing beyond drafting
+
+The current Aristotle implementation is intentionally narrow. It does not yet provide:
+
+- Contradiction detection.
+- Unreachable rule detection.
+- Ambiguous precedence analysis.
+- Separation-of-duties checks.
+- Privilege escalation analysis.
+- Z3/SMT counterexamples.
+- Policy activation workflow.
+- Policy persistence/version registry.
+- CI/pre-activation checks.
+
+That is appropriate for the current scope. The natural-language endpoint should remain draft-only until policy validation and review are stronger.
+
+What is still missing from the next steps
+
+Priority 1: Make Aristotle useful end-to-end
+
+The next practical milestone is to connect the new API to ArgusBC:
+
+text
+ArgusBC policy UI
+      ↓
+POST /v1/policy/draft
+      ↓
+Gemini-generated DraftPolicySchema
+      ↓
+RedactCore-compatible policy
+      ↓
+Human review
+      ↓
+Export/download or submit for validation
+
+Still needed:
+
+- Configure NEXT_PUBLIC_ARISTOTLE_API_URL or an equivalent server-side proxy.
+- Add an ArgusBC client for /v1/policy/draft.
+- Replace or clearly separate the current local deterministic translator.
+- Show Gemini/draft status in the UI.
+- Render warnings and unsupported/ambiguous requirements.
+- Keep “Save/Activate” disabled because no persistence/approval endpoint exists.
+- Add CORS/auth strategy before exposing the API publicly.
+
+Priority 2: Add a real policy validation boundary
+
+Before policies can be activated:
+
+- Validate every generated policy against RedactCore.
+- Add policy linting.
+- Detect contradictory rules.
+- Detect invalid or unsupported semantics.
+- Identify ambiguous defaults.
+- Produce human-readable validation warnings.
+- Keep generated policies immutable/versioned.
+- Introduce a review state:
+
+text
+DRAFT → VALIDATED → UNDER_REVIEW → APPROVED → ACTIVE
+
+This is the first real Aristotle expansion beyond LLM translation.
+
+Priority 3: Secure and deploy the Aristotle API
+
+Still missing:
+
+- Start Docker Desktop and build the image.
+- Add Cloud Run deployment configuration.
+- Store GEMINI_API_KEY in Secret Manager.
+- Configure Cloud Run service identity.
+- Add authentication or an authenticated internal proxy.
+- Add rate limiting and request quotas.
+- Configure production CORS.
+- Add structured request IDs and safe observability.
+- Add provider timeout/retry policy.
+- Add budget/model usage monitoring.
+
+The README has a deployment shape, but there is no live deployment yet.
+
+Priority 4: Connect ArgusBC to RedactCore for a real verified-view path
+
+The intended control flow is:
+
+text
+Source
+  → RedactCore upload
+  → Aristotle policy draft/validation
+  → human approval
+  → RedactCore view generation
+  → verification
+  → safe derived view
+  → RAG indexing
+
+Still missing or incomplete:
+
+- Durable source/view/manifest storage.
+- Live ArgusBC upload-to-RedactCore integration.
+- Live POST /api/views wiring from the UI.
+- Signed artifact URLs.
+- Verified-view extraction/chunking.
+- Workspace-scoped embeddings/index.
+- Index eligibility gate requiring verification.passed == true.
+
+Priority 5: Implement Cerberus runtime enforcement
+
+Once the verified-view path exists:
+
+- Define typed AccessRequest and Decision contracts.
+- Authenticate the principal.
+- Validate purpose, workspace, resource, and delegation.
+- Check Medusa quarantine state.
+- Call RedactCore for transformations.
+- Filter tool/MCP results.
+- Prevent raw source retrieval.
+- Emit audit events.
+
+Priority 6: Implement Medusa before production policy/agent activation
+
+Before users can safely activate agents or policy changes:
+
+- Snapshot policy/resource/access graphs.
+- Simulate proposed changes.
+- Produce affected principals/resources.
+- Quarantine risky changes.
+- Require review.
+- Support approval, rejection, rollback.
+- Block activation when Aristotle or Medusa is unavailable.
+
+Current recommended next milestone
+
+I would not jump directly to Cerberus or Medusa yet. The best next vertical slice is:
+
+text
+
+1. Deploy Aristotle privately on Cloud Run.
+2. Connect ArgusBC Policy Studio to it.
+3. Generate a Gemini policy from English/Traditional Chinese.
+4. Validate it against RedactCore policy semantics.
+5. Display warnings and a safe policy diff.
+6. Let a human download/export the draft.
+7. Use the approved policy manually with RedactCore.
+
+That creates a genuinely demonstrable Aristotle feature without pretending that policy activation or runtime enforcement already exists.
+
+Current project truth in one sentence:
+
+> Argus now has a fully deployed live privacy pipeline: RedactCore running on Cloud Run, Aristotle natural-language policy drafting powered by Gemini 3.8 Flash, an active Firestore & GCS synchronized Policy Enclave with dynamic policy activation, clean policy deletion workflows, and cryptographic protection preventing system demonstration policies from deletion.

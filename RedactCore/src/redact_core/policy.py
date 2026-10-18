@@ -62,6 +62,43 @@ class PolicyEngine:
             raise KeyError(f"Policy '{policy_id}' not found. Available: {list(self._policies.keys())}")
         return self._policies[policy_id]
 
+    def save_policy(self, policy: RedactionPolicy) -> Path:
+        """Saves a policy as a YAML file in policies_dir, and activates it in memory."""
+        self.policies_dir.mkdir(parents=True, exist_ok=True)
+        safe_id = "".join(c for c in policy.policy_id if c.isalnum() or c in ("-", "_")).strip()
+        if not safe_id:
+            raise ValueError(f"Invalid policy_id '{policy.policy_id}'")
+
+        target_file = self.policies_dir / f"{safe_id}.yaml"
+        # Convert Pydantic model to clean dictionary
+        raw_dict = policy.model_dump(exclude_none=True)
+        yaml_str = yaml.dump(raw_dict, sort_keys=False)
+        target_file.write_text(yaml_str, encoding="utf-8")
+
+        # Cache in memory
+        self._policies[policy.policy_id] = policy
+        return target_file
+
+    def delete_policy(self, policy_id: str) -> bool:
+        """Deletes a policy YAML file from policies_dir and unloads it from memory."""
+        safe_id = "".join(c for c in policy_id if c.isalnum() or c in ("-", "_")).strip()
+        if not safe_id:
+            raise ValueError(f"Invalid policy_id '{policy_id}'")
+
+        target_file = self.policies_dir / f"{safe_id}.yaml"
+        file_existed = False
+        if target_file.exists():
+            target_file.unlink()
+            file_existed = True
+
+        memory_existed = policy_id in self._policies or safe_id in self._policies
+        if policy_id in self._policies:
+            del self._policies[policy_id]
+        if safe_id in self._policies:
+            del self._policies[safe_id]
+
+        return file_existed or memory_existed
+
     def evaluate_rule(
         self,
         policy: RedactionPolicy,
