@@ -33,6 +33,12 @@ from redact_core.pipeline import RedactionPipeline
 from redact_core.storage import DocumentStore
 
 
+@pytest.fixture(autouse=True)
+def isolate_llm_from_presidio(monkeypatch):
+    """Isolates mock LLM inspection tests from local spaCy/Presidio model interception."""
+    monkeypatch.setenv("REDACTCORE_ENABLE_PRESIDIO", "false")
+
+
 class MockModelsService:
     """Mock models service conforming to the google-genai SDK interface."""
 

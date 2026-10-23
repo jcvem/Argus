@@ -234,6 +234,8 @@ def get_health() -> dict[str, Any]:
         "presidio": {
             "active": default_detector.presidio_available,
             "limitation": default_detector.presidio_limitation,
+            "languages": getattr(default_detector, "presidio_languages", []),
+            "models": getattr(default_detector, "presidio_models", {}),
         },
         "baseline_detector": "regex_deterministic",
         "ocr": default_ocr_router.get_health_summary(),

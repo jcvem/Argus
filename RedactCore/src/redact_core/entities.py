@@ -5,6 +5,7 @@ Guarantees local offline operation without external API calls or large model dow
 """
 
 import logging
+import os
 import re
 from typing import Any
 from redact_core.hashing import hash_sensitive_value
@@ -78,33 +79,100 @@ REGEX_PATTERNS: dict[str, list[re.Pattern]] = {
 class EntityDetector:
     """Hybrid entity detector using deterministic regex recognizers, optional Presidio, and optional Gemini LLM."""
 
-    def __init__(self, llm_inspector: GeminiEntityInspector | None = None):
+    def __init__(
+        self,
+        llm_inspector: GeminiEntityInspector | None = None,
+        spacy_model_en: str | None = None,
+        spacy_model_zh: str | None = None,
+        enable_presidio: bool | None = None,
+    ):
+        if enable_presidio is not None:
+            self.enable_presidio = enable_presidio
+        else:
+            self.enable_presidio = (
+                os.environ.get("REDACTCORE_ENABLE_PRESIDIO", "true").strip().lower()
+                not in ("false", "0", "no")
+            )
+        self.spacy_model_en = spacy_model_en or os.environ.get("REDACTCORE_SPACY_MODEL_EN")
+        self.spacy_model_zh = spacy_model_zh or os.environ.get("REDACTCORE_SPACY_MODEL_ZH")
         self.presidio_available = False
         self.presidio_limitation: str | None = None
+        self.presidio_languages: list[str] = []
+        self.presidio_models: dict[str, str] = {}
         self.analyzer = None
-        self._init_presidio_safely()
+        if self.enable_presidio:
+            self._init_presidio_safely()
+        else:
+            self.presidio_limitation = "Presidio analyzer disabled via configuration."
         self.llm_inspector = llm_inspector or GeminiEntityInspector()
 
     def _init_presidio_safely(self) -> None:
-        """Attempts to initialize Presidio without triggering large background model downloads."""
+        """Attempts to initialize Presidio with installed local spaCy models (supporting en and zh)."""
+        if os.environ.get("REDACTCORE_ENABLE_PRESIDIO", "true").strip().lower() in ("false", "0", "no"):
+            self.presidio_available = False
+            self.presidio_limitation = "Presidio analyzer disabled via REDACTCORE_ENABLE_PRESIDIO=false."
+            logger.info(self.presidio_limitation)
+            return
+
         try:
             import spacy
             from presidio_analyzer import AnalyzerEngine
+            from presidio_analyzer.nlp_engine import NlpEngineProvider
 
-            # Check if any spacy models are installed locally
-            installed = spacy.util.get_installed_models()
+            installed = set(spacy.util.get_installed_models())
             if not installed:
+                self.presidio_available = False
                 self.presidio_limitation = (
-                    "No local spaCy NLP model installed (e.g. en_core_web_lg). "
+                    "No local spaCy NLP model installed (e.g. en_core_web_lg, zh_core_web_lg). "
                     "Operating with deterministic regex recognizers."
                 )
                 logger.info(self.presidio_limitation)
                 return
 
-            # If a model exists, try initializing
-            self.analyzer = AnalyzerEngine()
+            models_config = []
+            supported_languages = []
+
+            # English model resolution (preference: explicit config -> en_core_web_lg -> en_core_web_trf -> en_core_web_md -> en_core_web_sm)
+            en_candidates = (
+                [self.spacy_model_en]
+                if self.spacy_model_en
+                else ["en_core_web_lg", "en_core_web_trf", "en_core_web_md", "en_core_web_sm"]
+            )
+            chosen_en = next((m for m in en_candidates if m and m in installed), None)
+            if chosen_en:
+                models_config.append({"lang_code": "en", "model_name": chosen_en})
+                supported_languages.append("en")
+
+            # Chinese model resolution (preference: explicit config -> zh_core_web_lg -> zh_core_web_md -> zh_core_web_sm)
+            zh_candidates = (
+                [self.spacy_model_zh]
+                if self.spacy_model_zh
+                else ["zh_core_web_lg", "zh_core_web_md", "zh_core_web_sm"]
+            )
+            chosen_zh = next((m for m in zh_candidates if m and m in installed), None)
+            if chosen_zh:
+                models_config.append({"lang_code": "zh", "model_name": chosen_zh})
+                supported_languages.append("zh")
+
+            if not models_config:
+                self.presidio_available = False
+                self.presidio_limitation = (
+                    f"Installed spaCy models ({list(installed)}) do not match supported languages (en/zh)."
+                )
+                logger.info(self.presidio_limitation)
+                return
+
+            provider = NlpEngineProvider(nlp_configuration={
+                "nlp_engine_name": "spacy",
+                "models": models_config,
+            })
+            nlp_engine = provider.create_engine()
+            self.analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=supported_languages)
             self.presidio_available = True
-            logger.info("Presidio AnalyzerEngine initialized successfully with local model.")
+            self.presidio_languages = supported_languages
+            self.presidio_models = {c["lang_code"]: c["model_name"] for c in models_config}
+            self.presidio_limitation = None
+            logger.info("Presidio AnalyzerEngine initialized successfully with models: %s", self.presidio_models)
         except Exception as e:
             self.presidio_available = False
             self.presidio_limitation = f"Presidio initialization bypassed: {e}"
@@ -184,30 +252,49 @@ class EntityDetector:
 
         # 3. Optional Presidio fallback / enrichment if available
         if self.presidio_available and self.analyzer:
-            try:
-                results = self.analyzer.analyze(text=text, language="en")
-                for r in results:
-                    val = text[r.start : r.end].strip()
-                    if not val or (r.entity_type, r.start, r.end) in seen_spans:
-                        continue
-                    seen_spans.add((r.entity_type, r.start, r.end))
-                    findings.append(
-                        EntityFinding(
-                            finding_id=f"det_{len(findings)}_{hash_sensitive_value(val)[:8]}",
-                            entity_type=r.entity_type,
-                            value_digest=hash_sensitive_value(val),
-                            page_or_section=page_or_section,
-                            source_ref=source_ref,
-                            start=r.start,
-                            end=r.end,
-                            confidence=r.score,
-                            source="presidio",
-                            requires_review=r.score < 0.75,
-                            raw_value=val,
+            langs_to_run = []
+            if "en" in self.presidio_languages:
+                langs_to_run.append("en")
+            if "zh" in self.presidio_languages and re.search(r"[\u4e00-\u9fff]", text):
+                langs_to_run.append("zh")
+
+            for lang in langs_to_run:
+                try:
+                    results = self.analyzer.analyze(text=text, language=lang)
+                    for r in results:
+                        val = text[r.start : r.end].strip()
+                        if not val or (r.entity_type, r.start, r.end) in seen_spans:
+                            continue
+
+                        # Overlap check: deterministic regex / metadata takes priority
+                        has_overlap = False
+                        for ef in findings:
+                            if ef.start is not None and ef.end is not None:
+                                if not (r.end <= ef.start or r.start >= ef.end):
+                                    has_overlap = True
+                                    break
+
+                        if has_overlap:
+                            continue
+
+                        seen_spans.add((r.entity_type, r.start, r.end))
+                        findings.append(
+                            EntityFinding(
+                                finding_id=f"det_{len(findings)}_{hash_sensitive_value(val)[:8]}",
+                                entity_type=r.entity_type,
+                                value_digest=hash_sensitive_value(val),
+                                page_or_section=page_or_section,
+                                source_ref=source_ref,
+                                start=r.start,
+                                end=r.end,
+                                confidence=r.score,
+                                source="presidio",
+                                requires_review=r.score < 0.75,
+                                raw_value=val,
+                            )
                         )
-                    )
-            except Exception as e:
-                logger.warning(f"Presidio analyze error: {e}")
+                except Exception as e:
+                    logger.warning(f"Presidio analyze error for language '{lang}': {e}")
 
         # 4. Optional Gemini LLM inspection (strictly gated by detector_mode and feature flag)
         if allow_llm is None:
@@ -274,6 +361,8 @@ class EntityDetector:
             "presidio": {
                 "active": self.presidio_available,
                 "limitation": self.presidio_limitation,
+                "languages": self.presidio_languages,
+                "models": self.presidio_models,
             },
             "baseline_detector": "regex_deterministic",
             "llm_inspector": self.llm_inspector.check_health(),
